@@ -160,6 +160,7 @@ export interface Sale {
   cashTendered?: number;
   changeAmount?: number;
   cashierName: string;
+  items?: SaleItem[];
 }
 
 export interface SaleItem {
@@ -169,6 +170,10 @@ export interface SaleItem {
   sku: string;
   quantity: number;
   unitPrice: number;
+  discountAmount?: number;
+  vatRate?: number;
+  vatAmount?: number;
+  taxableAmount?: number;
   lineTotal: number;
 }
 

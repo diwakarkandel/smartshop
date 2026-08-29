@@ -234,6 +234,7 @@ public class PurchaseService {
                         .discountAmount(item.getDiscountAmount())
                         .vatRate(item.getVatRate())
                         .vatAmount(item.getVatAmount())
+                        .taxableAmount(item.getLineTotal().subtract(item.getVatAmount()))
                         .lineTotal(item.getLineTotal())
                         .build()).toList();
         return PurchaseResponse.builder()

@@ -23,5 +23,6 @@ public class SaleItemResponse {
     private BigDecimal discountAmount;
     private BigDecimal vatRate;
     private BigDecimal vatAmount;
+    private BigDecimal taxableAmount;
     private BigDecimal lineTotal;
 }
