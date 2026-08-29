@@ -16,6 +16,7 @@ const ROUTE_PATHS = [
   '/expenses',
   '/users',
   '/settings',
+  '/settings/taxes',
   '/shop-registration',
   '/admin/shop-approvals',
   '/admin/dashboard',
@@ -39,6 +40,10 @@ describe('ROUTE_ACCESS', () => {
   it('restricts shop-owner routes to SHOP_ADMIN only', () => {
     expect(ROUTE_ACCESS['/shop/invite-code'].roles).toEqual([ROLES.SHOP_ADMIN]);
     expect(ROUTE_ACCESS['/shop/staff-requests'].roles).toEqual([ROLES.SHOP_ADMIN]);
+  });
+
+  it('gates tax settings to shop administrators', () => {
+    expect(ROUTE_ACCESS['/settings/taxes'].roles).toEqual([ROLES.SUPER_ADMIN, ROLES.SHOP_ADMIN]);
   });
 
   it('only references known roles', () => {

@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box, Card, Typography, Table, TableHead, TableRow, TableCell, TableBody,
   Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  IconButton, Pagination, CircularProgress, Alert, MenuItem, Chip,
+  IconButton, Pagination, CircularProgress, Alert, MenuItem, Chip, Divider,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api, { extractErrorMessage } from '../lib/api';
+import { computeTaxBreakdown, type TaxLineInput } from '../lib/tax';
+import TaxTotals from '../components/billing/TaxTotals';
 import { defaultShopId, defaultBranchId } from '../stores/shopStore';
 import type { PageResponse, Product, Purchase, Supplier } from '../types';
 
@@ -60,6 +62,22 @@ export default function PurchasesPage() {
     },
     enabled: Boolean(shopId),
   });
+
+  const breakdown = useMemo(() => {
+    const productById = new Map((products ?? []).map((p) => [p.id, p]));
+    const resolved: TaxLineInput[] = [];
+    for (const line of lines) {
+      const product = line.productId ? productById.get(line.productId) : undefined;
+      if (!product || !(Number(line.quantity) > 0)) continue;
+      resolved.push({
+        quantity: Number(line.quantity),
+        unitPrice: Number(line.unitCost || 0),
+        vatApplicable: product.vatApplicable,
+        vatRate: product.vatRate,
+      });
+    }
+    return computeTaxBreakdown(resolved);
+  }, [lines, products]);
 
   const create = useMutation({
     mutationFn: async () =>
@@ -214,6 +232,13 @@ export default function PurchasesPage() {
           <Button onClick={() => setLines([...lines, { productId: '', quantity: '1', unitCost: '0' }])}>
             Add item
           </Button>
+          <Divider sx={{ my: 1.5 }} />
+          <TaxTotals
+            subtotal={breakdown.subtotal}
+            byRate={breakdown.byRate}
+            tax={breakdown.vatAmount}
+            total={breakdown.totalAmount}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>

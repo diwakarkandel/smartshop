@@ -1,6 +1,6 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/authStore';
-import type { AuthUser } from '../types';
+import type { AuthUser, Sale, Tax, TaxRate, TaxType } from '../types';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? '/api/v1',
@@ -71,6 +71,51 @@ export function extractErrorMessage(error: unknown): string {
     return error.message;
   }
   return error instanceof Error ? error.message : 'Something went wrong';
+}
+
+export interface TaxRatePayload {
+  rate: number;
+  validFrom: string;
+  validTo?: string | null;
+}
+
+export interface TaxPayload {
+  shopId: string;
+  name: string;
+  type: TaxType;
+  description?: string;
+  isActive: boolean;
+  rates: TaxRatePayload[];
+}
+
+export async function listTaxes(shopId: string, activeOnly = false): Promise<Tax[]> {
+  const res = await api.get<{ data: Tax[] }>('/taxes', { params: { shopId, activeOnly } });
+  return res.data.data;
+}
+
+export async function getTax(id: string): Promise<Tax> {
+  const res = await api.get<{ data: Tax }>(`/taxes/${id}`);
+  return res.data.data;
+}
+
+export async function createTax(payload: TaxPayload): Promise<Tax> {
+  const res = await api.post<{ data: Tax }>('/taxes', payload);
+  return res.data.data;
+}
+
+export async function updateTax(id: string, payload: TaxPayload): Promise<Tax> {
+  const res = await api.put<{ data: Tax }>(`/taxes/${id}`, payload);
+  return res.data.data;
+}
+
+export async function addTaxRate(taxId: string, payload: TaxRatePayload): Promise<TaxRate> {
+  const res = await api.post<{ data: TaxRate }>(`/taxes/${taxId}/rates`, payload);
+  return res.data.data;
+}
+
+export async function getSale(id: string): Promise<Sale> {
+  const res = await api.get<{ data: Sale }>(`/sales/${id}`);
+  return res.data.data;
 }
 
 export default api;

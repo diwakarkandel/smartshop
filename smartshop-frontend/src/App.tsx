@@ -23,6 +23,7 @@ const TransfersPage = lazy(() => import('./pages/TransfersPage'));
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const TaxSettingsPage = lazy(() => import('./pages/TaxSettingsPage'));
 const ShopRegistrationPage = lazy(() => import('./pages/ShopRegistrationPage'));
 const AdminShopApprovalsPage = lazy(() => import('./pages/AdminShopApprovalsPage'));
 const AdminOversightDashboard = lazy(() => import('./pages/AdminOversightDashboard'));
@@ -45,6 +46,7 @@ const ROUTES = [
   { path: 'expenses', Component: ExpensesPage },
   { path: 'users', Component: UsersPage },
   { path: 'settings', Component: SettingsPage },
+  { path: 'settings/taxes', Component: TaxSettingsPage },
   { path: 'shop-registration', Component: ShopRegistrationPage },
   { path: 'admin/shop-approvals', Component: AdminShopApprovalsPage },
   { path: 'admin/dashboard', Component: AdminOversightDashboard },

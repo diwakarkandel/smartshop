@@ -28,6 +28,8 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import api, { extractErrorMessage } from '../lib/api';
+import { computeTaxBreakdown, round2 } from '../lib/tax';
+import TaxTotals from '../components/billing/TaxTotals';
 import { defaultShopId, defaultBranchId } from '../stores/shopStore';
 import type { ProductSearch, Sale } from '../types';
 
@@ -35,8 +37,6 @@ interface CartLine {
   product: ProductSearch;
   quantity: number;
 }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function PosPage() {
   const shopId = defaultShopId();
@@ -81,19 +81,22 @@ export default function PosPage() {
 
   const removeLine = (id: string) => setCart((prev) => prev.filter((l) => l.product.id !== id));
 
-  const { subtotal, vat, total } = useMemo(() => {
-    let sub = 0;
-    let v = 0;
-    for (const line of cart) {
-      const lineGross = line.quantity * line.product.sellingPrice;
-      const lineVat = line.product.vatApplicable
-        ? round2((lineGross * line.product.vatRate) / 100)
-        : 0;
-      sub = round2(sub + lineGross);
-      v = round2(v + lineVat);
-    }
-    return { subtotal: sub, vat: v, total: round2(sub + v) };
-  }, [cart]);
+  const breakdown = useMemo(
+    () =>
+      computeTaxBreakdown(
+        cart.map((l) => ({
+          quantity: l.quantity,
+          unitPrice: l.product.sellingPrice,
+          vatApplicable: l.product.vatApplicable,
+          vatRate: l.product.vatRate,
+        })),
+      ),
+    [cart],
+  );
+
+  const subtotal = breakdown.subtotal;
+  const vat = breakdown.vatAmount;
+  const total = breakdown.totalAmount;
 
   const change = tendered ? round2(Number(tendered) - total) : 0;
 
@@ -249,18 +252,12 @@ export default function PosPage() {
             </Box>
             <Divider sx={{ my: 1 }} />
             <Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2">Subtotal</Typography>
-                <Typography variant="body2">{subtotal.toFixed(2)}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="body2">VAT</Typography>
-                <Typography variant="body2">{vat.toFixed(2)}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="h6">Total</Typography>
-                <Typography variant="h6">{total.toFixed(2)}</Typography>
-              </Box>
+              <TaxTotals
+                subtotal={subtotal}
+                byRate={breakdown.byRate}
+                tax={vat}
+                total={total}
+              />
               <TextField
                 label="Cash tendered"
                 type="number"

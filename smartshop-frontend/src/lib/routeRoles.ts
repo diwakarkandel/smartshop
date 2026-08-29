@@ -29,6 +29,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   '/expenses': { roles: [ROLES.SUPER_ADMIN, ROLES.SHOP_ADMIN, ROLES.MANAGER, ROLES.ACCOUNTANT] },
   '/users': { roles: [ROLES.SUPER_ADMIN, ROLES.SHOP_ADMIN] },
   '/settings': { roles: [ROLES.SUPER_ADMIN, ROLES.SHOP_ADMIN] },
+  '/settings/taxes': { roles: [ROLES.SUPER_ADMIN, ROLES.SHOP_ADMIN] },
   '/admin/shop-approvals': { roles: [ROLES.SUPER_ADMIN] },
   '/admin/dashboard': { roles: [ROLES.SUPER_ADMIN] },
   '/shop/invite-code': { roles: [ROLES.SHOP_ADMIN] },

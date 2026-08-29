@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Box, Card, Typography, Table, TableHead, TableRow, TableCell, TableBody,
-  Dialog, DialogTitle, DialogContent, Chip, Pagination, CircularProgress,
+  Dialog, DialogTitle, DialogContent, Chip, Pagination, CircularProgress, Divider,
 } from '@mui/material';
 import api from '../lib/api';
+import { groupTaxByRate } from '../lib/tax';
+import TaxTotals from '../components/billing/TaxTotals';
 import { defaultShopId } from '../stores/shopStore';
 import type { PageResponse, Sale } from '../types';
 
@@ -80,28 +82,69 @@ export default function SalesPage() {
           {selected && (
             <>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Subtotal</Typography>
-                <Typography variant="body2">{selected.subtotal.toFixed(2)}</Typography>
+                <Typography variant="body2">Date</Typography>
+                <Typography variant="body2">{selected.billDate}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Discount</Typography>
-                <Typography variant="body2">{selected.discountAmount.toFixed(2)}</Typography>
+                <Typography variant="body2">Branch</Typography>
+                <Typography variant="body2">{selected.branchName}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">VAT</Typography>
-                <Typography variant="body2">{selected.vatAmount.toFixed(2)}</Typography>
+                <Typography variant="body2">Payment</Typography>
+                <Typography variant="body2">
+                  {selected.paymentMethod ?? '-'}
+                  {selected.paymentStatus === 'PAID' ? ' (PAID)' : ` (${selected.paymentStatus})`}
+                </Typography>
               </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6">Total</Typography>
-                <Typography variant="h6">{selected.totalAmount.toFixed(2)}</Typography>
-              </Box>
+              <Divider sx={{ my: 1.5 }} />
+              {(selected.items ?? []).length > 0 && (
+                <>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Item</TableCell>
+                        <TableCell align="right">Qty</TableCell>
+                        <TableCell align="right">Price</TableCell>
+                        <TableCell align="right">Tax</TableCell>
+                        <TableCell align="right">Line</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(selected.items ?? []).map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <Typography variant="body2">{item.productName}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {item.sku}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">{item.quantity}</TableCell>
+                          <TableCell align="right">{item.unitPrice.toFixed(2)}</TableCell>
+                          <TableCell align="right">
+                            {item.vatRate != null ? `${item.vatRate}% / ${item.vatAmount?.toFixed(2)}` : '-'}
+                          </TableCell>
+                          <TableCell align="right">{item.lineTotal.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <Divider sx={{ my: 1.5 }} />
+                </>
+              )}
+              <TaxTotals
+                subtotal={selected.subtotal}
+                discount={selected.discountAmount > 0 ? selected.discountAmount : undefined}
+                byRate={groupTaxByRate(selected.items ?? [])}
+                tax={selected.vatAmount}
+                total={selected.totalAmount}
+              />
               {selected.cashTendered != null && (
                 <>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Tendered</Typography>
                     <Typography variant="body2">{selected.cashTendered.toFixed(2)}</Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Change</Typography>
                     <Typography variant="body2" color="success.main">
                       {selected.changeAmount?.toFixed(2)}
@@ -109,9 +152,11 @@ export default function SalesPage() {
                   </Box>
                 </>
               )}
-              <Typography variant="caption" color="text.secondary">
-                Cashier: {selected.cashierName}
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="caption" color="text.secondary">
+                  Cashier: {selected.cashierName}
+                </Typography>
+              </Box>
             </>
           )}
         </DialogContent>

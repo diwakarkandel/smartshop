@@ -30,6 +30,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import PeopleIcon from '@mui/icons-material/People';
 import SettingsIcon from '@mui/icons-material/Settings';
+import PercentIcon from '@mui/icons-material/Percent';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import InsightsIcon from '@mui/icons-material/Insights';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
@@ -65,6 +66,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Expenses', path: '/expenses', icon: <AccountBalanceWalletIcon /> },
   { label: 'Users', path: '/users', icon: <PeopleIcon /> },
   { label: 'Settings', path: '/settings', icon: <SettingsIcon /> },
+  { label: 'Tax Settings', path: '/settings/taxes', icon: <PercentIcon /> },
   { label: 'Shop Approvals', path: '/admin/shop-approvals', icon: <AdminPanelSettingsIcon /> },
   { label: 'Oversight', path: '/admin/dashboard', icon: <InsightsIcon /> },
   { label: 'Invite Code', path: '/shop/invite-code', icon: <VpnKeyIcon /> },

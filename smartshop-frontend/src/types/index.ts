@@ -124,6 +124,27 @@ export interface Customer {
   loyaltyPoints: number;
 }
 
+export type TaxType = 'PERCENTAGE' | 'FIXED';
+
+export interface TaxRate {
+  id: string;
+  taxId: string;
+  rate: number;
+  validFrom: string;
+  validTo?: string | null;
+}
+
+export interface Tax {
+  id: string;
+  shopId: string;
+  shopName: string;
+  name: string;
+  type: TaxType;
+  description?: string;
+  isActive: boolean;
+  rates: TaxRate[];
+}
+
 export interface Purchase {
   id: string;
   purchaseNumber: string;
