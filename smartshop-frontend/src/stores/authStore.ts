@@ -20,10 +20,6 @@ export const useAuthStore = create<AuthState>()(
       status: 'idle',
       setSession: (auth) => set({ user: auth, status: 'ready' }),
       initializeSession: async () => {
-        if (!get().user) {
-          set({ status: 'ready' });
-          return;
-        }
         set({ status: 'hydrating' });
         try {
           const res = await axios.post<{ data: AuthUser }>(
