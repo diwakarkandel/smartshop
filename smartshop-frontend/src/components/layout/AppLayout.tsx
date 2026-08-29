@@ -83,7 +83,7 @@ export default function AppLayout() {
   const visibleItems = NAV_ITEMS.filter((item) => {
     const access = ROUTE_ACCESS[item.path];
     if (!access) return false;
-    const excluded = (access.notRoles ?? []).some((r) => user?.roles.includes(r));
+    const excluded = (access.notRoles ?? []).some((r) => hasRole(r));
     return (access.roles.length === 0 || hasRole(...access.roles)) && !excluded;
   });
   const grants = user?.branchRoles ?? [];

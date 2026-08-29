@@ -9,6 +9,8 @@ import AddIcon from '@mui/icons-material/Add';
 import api, { extractErrorMessage } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
 import { defaultShopId } from '../stores/shopStore';
+import Can from '../components/guards/Can';
+import { ROLES } from '../lib/routeRoles';
 import type { PageResponse } from '../types';
 
 interface UserRow {
@@ -62,9 +64,11 @@ export default function UsersPage() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="h5">Users</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
-          Invite User
-        </Button>
+        <Can roles={[ROLES.SUPER_ADMIN]}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
+            Invite User
+          </Button>
+        </Can>
       </Box>
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>

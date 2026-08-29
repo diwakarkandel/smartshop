@@ -13,11 +13,10 @@ export default function RequireRole({
   notRoles = [],
   children,
 }: RequireRoleProps) {
-  const user = useAuthStore((s) => s.user);
   const hasRole = useAuthStore((s) => s.hasRole);
 
   const roleGranted = roles.length === 0 || hasRole(...roles);
-  const excluded = (notRoles ?? []).some((r) => user?.roles.includes(r));
+  const excluded = (notRoles ?? []).some((r) => hasRole(r));
 
   if (!roleGranted || excluded) {
     return <Navigate to="/not-authorized" replace />;
