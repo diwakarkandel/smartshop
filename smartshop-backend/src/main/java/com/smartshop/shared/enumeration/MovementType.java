@@ -1,0 +1,6 @@
+package com.smartshop.shared.enumeration;
+
+public enum MovementType {
+    PURCHASE_IN, SALE_OUT, SALE_RETURN_IN, PURCHASE_RETURN_OUT,
+    ADJUSTMENT_IN, ADJUSTMENT_OUT, TRANSFER_IN, TRANSFER_OUT, OPENING_STOCK
+}

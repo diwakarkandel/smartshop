@@ -9,6 +9,7 @@ import com.smartshop.security.SecurityUtils;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuditService {
@@ -30,7 +32,8 @@ public class AuditService {
 
     @Transactional
     public void log(String action, String entityName, String entityId, String oldValue, String newValue) {
-        AuditLog log = AuditLog.builder()
+        log.debug("Audit record: action={}, entityName={}, entityId={}", action, entityName, entityId);
+        AuditLog auditLog = AuditLog.builder()
                 .user(currentUserOrNull())
                 .action(action)
                 .entityName(entityName)
@@ -39,12 +42,13 @@ public class AuditService {
                 .newValue(newValue)
                 .ipAddress(resolveIp())
                 .build();
-        auditLogRepository.save(log);
+        auditLogRepository.save(auditLog);
     }
 
     @Transactional(readOnly = true)
     public Page<AuditLogResponse> list(UUID userId, String action, String entityName, LocalDateTime dateFrom,
                                        LocalDateTime dateTo, Pageable pageable) {
+        log.info("Querying audit logs: userId={}, action={}, entityName={}", userId, action, entityName);
         Page<AuditLog> page = auditLogRepository.findAll((root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (userId != null) {
@@ -65,18 +69,41 @@ public class AuditService {
             query.orderBy(cb.desc(root.get("createdAt")));
             return cb.and(predicates.toArray(new Predicate[0]));
         }, pageable);
-        return page.map(log -> AuditLogResponse.builder()
-                .id(log.getId())
-                .userId(log.getUser() == null ? null : log.getUser().getId())
-                .userName(log.getUser() == null ? null : log.getUser().getFullName())
-                .action(log.getAction())
-                .entityName(log.getEntityName())
-                .entityId(log.getEntityId())
-                .oldValue(log.getOldValue())
-                .newValue(log.getNewValue())
-                .ipAddress(log.getIpAddress())
-                .createdAt(log.getCreatedAt())
+        return page.map(l -> AuditLogResponse.builder()
+                .id(l.getId())
+                .userId(l.getUser() == null ? null : l.getUser().getId())
+                .userName(l.getUser() == null ? null : l.getUser().getFullName())
+                .action(l.getAction())
+                .entityName(l.getEntityName())
+                .entityId(l.getEntityId())
+                .oldValue(l.getOldValue())
+                .newValue(l.getNewValue())
+                .ipAddress(l.getIpAddress())
+                .createdAt(l.getCreatedAt())
                 .build());
+    }
+
+    @Transactional(readOnly = true)
+    public List<AuditLogResponse> getEntityHistory(String entityName, String entityId) {
+        log.info("Fetching audit history for entity {}:{}", entityName, entityId);
+        return auditLogRepository.findAll((root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("entityName"), entityName));
+            predicates.add(cb.equal(root.get("entityId"), entityId));
+            query.orderBy(cb.desc(root.get("createdAt")));
+            return cb.and(predicates.toArray(new Predicate[0]));
+        }).stream().map(l -> AuditLogResponse.builder()
+                .id(l.getId())
+                .userId(l.getUser() == null ? null : l.getUser().getId())
+                .userName(l.getUser() == null ? null : l.getUser().getFullName())
+                .action(l.getAction())
+                .entityName(l.getEntityName())
+                .entityId(l.getEntityId())
+                .oldValue(l.getOldValue())
+                .newValue(l.getNewValue())
+                .ipAddress(l.getIpAddress())
+                .createdAt(l.getCreatedAt())
+                .build()).toList();
     }
 
     private User currentUserOrNull() {

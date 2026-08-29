@@ -1,0 +1,14 @@
+# IDE
+.idea/
+
+# Runtime logs
+*.log
+
+# Frontend build artifacts (tool-generated)
+smartshop-frontend/tsconfig.tsbuildinfo
+smartshop-frontend/tsconfig.node.tsbuildinfo
+smartshop-frontend/vite.config.js
+smartshop-frontend/vite.config.d.ts
+smartshop-frontend/vitest.config.ts.timestamp-*.mjs
+smartshop-frontend/vitest.config.d.ts
+smartshop-frontend/vitest.config.js
