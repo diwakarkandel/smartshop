@@ -16,36 +16,83 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  IconButton,
+  Stack,
   Alert,
   MenuItem,
   Pagination,
   CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
 import api, { extractErrorMessage } from '../lib/api';
-import { defaultShopId } from '../stores/shopStore';
-import type { PageResponse, Product } from '../types';
+import { useDefaultShopId } from '../stores/shopStore';
+import ImageUpload from '../components/common/ImageUpload';
+import type { ApiResponse, PageResponse, Product, ProductRequest, Status } from '../types';
+
+const STATUSES: Status[] = ['ACTIVE', 'INACTIVE', 'DISCONTINUED'];
+
+interface ProductForm {
+  name: string;
+  sku: string;
+  barcode: string;
+  brand: string;
+  unit: string;
+  purchasePrice: string;
+  sellingPrice: string;
+  targetMargin: string;
+  vatApplicable: boolean;
+  reorderLevel: string;
+  imageUrl: string;
+  status: Status;
+}
+
+const EMPTY_FORM: ProductForm = {
+  name: '',
+  sku: '',
+  barcode: '',
+  brand: '',
+  unit: 'PCS',
+  purchasePrice: '0',
+  sellingPrice: '0',
+  targetMargin: '20',
+  vatApplicable: true,
+  reorderLevel: '0',
+  imageUrl: '',
+  status: 'ACTIVE',
+};
 
 export default function ProductsPage() {
-  const shopId = defaultShopId();
+  const shopId = useDefaultShopId();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({
-    name: '',
-    sku: '',
-    barcode: '',
-    brand: '',
-    unit: 'PCS',
-    purchasePrice: '0',
-    sellingPrice: '0',
-    vatApplicable: true,
-    reorderLevel: '0',
-  });
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [form, setForm] = useState<ProductForm>(EMPTY_FORM);
+  const [suggesting, setSuggesting] = useState(false);
+
+  const applyTargetMargin = async () => {
+    const margin = Number(form.targetMargin) || 0;
+    // For an existing product we can ask the backend, which prices off the real
+    // weighted-average landed cost (not just the typed purchase price).
+    if (editing) {
+      try {
+        setSuggesting(true);
+        const res = await api.get<ApiResponse<{ suggestedSellingPrice: number }>>('/pricing/suggest', {
+          params: { productId: editing.id, margin },
+        });
+        setForm((f) => ({ ...f, sellingPrice: Number(res.data.data.suggestedSellingPrice).toFixed(2) }));
+        return;
+      } catch (err) {
+        setError(extractErrorMessage(err));
+      } finally {
+        setSuggesting(false);
+      }
+    }
+    // New product: no cost history yet, fall back to a local calc from purchase price.
+    const cost = Number(form.purchasePrice) || 0;
+    setForm((f) => ({ ...f, sellingPrice: (cost * (1 + margin / 100)).toFixed(2) }));
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', shopId, page, search],
@@ -58,10 +105,42 @@ export default function ProductsPage() {
     enabled: Boolean(shopId),
   });
 
-  const createProduct = useMutation({
+  const openNew = () => {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setOpen(true);
+  };
+
+  const openEdit = (p: Product) => {
+    setEditing(p);
+    // PUT is a full replace of ProductRequest, so prefill every editable field.
+    setForm({
+      name: p.name,
+      sku: p.sku,
+      barcode: p.barcode ?? '',
+      brand: p.brand ?? '',
+      unit: p.unit,
+      purchasePrice: String(p.purchasePrice ?? 0),
+      sellingPrice: String(p.sellingPrice ?? 0),
+      targetMargin: '20',
+      vatApplicable: p.vatApplicable,
+      reorderLevel: String(p.reorderLevel ?? 0),
+      imageUrl: p.imageUrl ?? '',
+      status: p.status,
+    });
+    setOpen(true);
+  };
+
+  const closeDialog = () => {
+    setOpen(false);
+    setEditing(null);
+    setForm(EMPTY_FORM);
+  };
+
+  const save = useMutation({
     mutationFn: async () => {
-      const res = await api.post<{ data: Product }>('/products', {
-        shopId,
+      const payload: ProductRequest = {
+        shopId: shopId ?? '',
         name: form.name,
         sku: form.sku,
         barcode: form.barcode || null,
@@ -71,11 +150,15 @@ export default function ProductsPage() {
         sellingPrice: Number(form.sellingPrice),
         vatApplicable: form.vatApplicable,
         reorderLevel: Number(form.reorderLevel),
-      });
-      return res.data.data;
+        imageUrl: form.imageUrl || null,
+        status: form.status,
+      };
+      return editing
+        ? api.put<{ data: Product }>(`/products/${editing.id}`, payload)
+        : api.post<{ data: Product }>('/products', payload);
     },
     onSuccess: () => {
-      setOpen(false);
+      closeDialog();
       setError('');
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
@@ -102,7 +185,7 @@ export default function ProductsPage() {
               setPage(0);
             }}
           />
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
             New Product
           </Button>
         </Box>
@@ -126,9 +209,11 @@ export default function ProductsPage() {
                 <TableCell>Brand</TableCell>
                 <TableCell align="right">Purchase</TableCell>
                 <TableCell align="right">Selling</TableCell>
+                <TableCell align="right">Suggested</TableCell>
+                <TableCell align="right">Margin %</TableCell>
                 <TableCell>VAT</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell></TableCell>
+                <TableCell align="right"></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -139,20 +224,39 @@ export default function ProductsPage() {
                   <TableCell>{p.brand ?? '-'}</TableCell>
                   <TableCell align="right">{p.purchasePrice.toFixed(2)}</TableCell>
                   <TableCell align="right">{p.sellingPrice.toFixed(2)}</TableCell>
+                  <TableCell align="right">
+                    {p.suggestedSellingPrice !== undefined ? p.suggestedSellingPrice.toFixed(2) : '-'}
+                  </TableCell>
+                  <TableCell align="right">
+                    {p.profitMarginPercent !== undefined ? `${p.profitMarginPercent.toFixed(1)}%` : '-'}
+                  </TableCell>
                   <TableCell>{p.vatApplicable ? `${p.vatRate}%` : '-'}</TableCell>
                   <TableCell>
                     <Chip size="small" color={p.status === 'ACTIVE' ? 'success' : 'default'} label={p.status} />
                   </TableCell>
-                  <TableCell>
-                    <IconButton size="small" onClick={() => deactivate.mutate(p.id)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                  <TableCell align="right">
+                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Button size="small" onClick={() => openEdit(p)}>
+                        Edit
+                      </Button>
+                      <Button
+                        size="small"
+                        color="error"
+                        disabled={p.status === 'INACTIVE' || deactivate.isPending}
+                        onClick={() => {
+                          if (!window.confirm(`Deactivate product "${p.name}"?`)) return;
+                          deactivate.mutate(p.id);
+                        }}
+                      >
+                        Deactivate
+                      </Button>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}
               {(data?.content ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8}>No products found</TableCell>
+                  <TableCell colSpan={10}>No products found</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -167,9 +271,17 @@ export default function ProductsPage() {
         />
       </Box>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>New Product</DialogTitle>
+      <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="sm">
+        <DialogTitle>{editing ? `Edit Product - ${editing.name}` : 'New Product'}</DialogTitle>
         <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <ImageUpload
+              value={form.imageUrl}
+              onChange={(url) => setForm({ ...form, imageUrl: url || '' })}
+              label="Product Image"
+              size={100}
+            />
+          </Box>
           <TextField label="Name" fullWidth margin="dense" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <TextField label="SKU" fullWidth margin="dense" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
           <TextField label="Barcode" fullWidth margin="dense" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} />
@@ -190,14 +302,49 @@ export default function ProductsPage() {
           </TextField>
           <TextField label="Purchase Price" type="number" fullWidth margin="dense" value={form.purchasePrice} onChange={(e) => setForm({ ...form, purchasePrice: e.target.value })} />
           <TextField label="Selling Price" type="number" fullWidth margin="dense" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TextField
+              label="Target Margin %"
+              type="number"
+              size="small"
+              margin="dense"
+              sx={{ flex: 1 }}
+              value={form.targetMargin}
+              onChange={(e) => setForm({ ...form, targetMargin: e.target.value })}
+            />
+            <Button size="small" variant="outlined" sx={{ mt: 1 }} disabled={suggesting} onClick={applyTargetMargin}>
+              {editing ? 'Suggest Price' : 'Auto-fill Price'}
+            </Button>
+          </Box>
+          {editing && (
+            <Typography variant="caption" color="text.secondary" display="block">
+              Suggest uses this product&apos;s real weighted-average cost from inventory history.
+            </Typography>
+          )}
           <TextField label="Reorder Level" type="number" fullWidth margin="dense" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} />
+          {editing && (
+            <TextField
+              select
+              label="Status"
+              fullWidth
+              margin="dense"
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value as Status })}
+            >
+              {STATUSES.map((s) => (
+                <MenuItem key={s} value={s}>
+                  {s}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={closeDialog}>Cancel</Button>
           <Button
             variant="contained"
-            disabled={!form.name || !form.sku || createProduct.isPending}
-            onClick={() => createProduct.mutate()}
+            disabled={!form.name || !form.sku || save.isPending}
+            onClick={() => save.mutate()}
           >
             Save
           </Button>

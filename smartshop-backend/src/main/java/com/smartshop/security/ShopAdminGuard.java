@@ -18,6 +18,14 @@ public class ShopAdminGuard {
 
     public void requireShopAdmin(UUID userId, UUID shopId) {
         List<UserBranchRole> grants = userBranchRoleRepository.findByUserIdAndIsActiveTrue(userId);
+
+        // SUPER_ADMIN has platform-wide access and bypasses all shop-ownership checks.
+        boolean isSuperAdmin = grants.stream()
+                .anyMatch(grant -> AppConstants.ROLE_SUPER_ADMIN.equals(grant.getRole().getName()));
+        if (isSuperAdmin) {
+            return;
+        }
+
         boolean isShopAdminOfShop = grants.stream()
                 .anyMatch(grant -> grant.getBranch() == null
                         && grant.getShop() != null

@@ -3,8 +3,14 @@ package com.smartshop.features.auth.service;
 import com.smartshop.features.auth.dto.AuthResponse;
 import com.smartshop.features.auth.dto.AuthResponse.BranchRoleResponse;
 import com.smartshop.features.auth.dto.AuthResult;
+import com.smartshop.features.auth.dto.ForgotPasswordRequest;
 import com.smartshop.features.auth.dto.LoginRequest;
 import com.smartshop.features.auth.dto.RegisterRequest;
+import com.smartshop.features.auth.dto.ResetPasswordRequest;
+import com.smartshop.features.auth.entity.EmailVerificationToken;
+import com.smartshop.features.auth.entity.PasswordResetToken;
+import com.smartshop.features.auth.repository.EmailVerificationTokenRepository;
+import com.smartshop.features.auth.repository.PasswordResetTokenRepository;
 import com.smartshop.features.user.entity.User;
 import com.smartshop.features.user.repository.UserRepository;
 import com.smartshop.features.userBranchRole.entity.UserBranchRole;
@@ -14,6 +20,7 @@ import com.smartshop.security.JwtTokenProvider;
 import com.smartshop.security.RateLimiterService;
 import com.smartshop.security.RefreshTokenBlacklist;
 import com.smartshop.shared.email.EmailService;
+import com.smartshop.shared.exception.BadRequestException;
 import com.smartshop.shared.exception.DuplicateResourceException;
 import com.smartshop.shared.exception.UnauthorizedException;
 import com.smartshop.shared.enumeration.UserStatus;
@@ -27,6 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -42,6 +50,8 @@ public class AuthService {
     private final RateLimiterService rateLimiterService;
     private final RefreshTokenBlacklist refreshTokenBlacklist;
     private final EmailService emailService;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
 
     @Transactional
     public AuthResult register(RegisterRequest request) {
@@ -57,13 +67,15 @@ public class AuthService {
         user.setPhone(request.getPhone());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setStatus(UserStatus.ACTIVE);
+        user.setEmailVerified(false);
         User saved = userRepository.save(user);
         
-        // Trigger welcome email asynchronously so it doesn't block the API response
+        // Trigger welcome email and verification email asynchronously
         try {
             emailService.sendWelcomeEmail(saved.getEmail(), saved.getFirstName());
+            sendVerificationToken(saved);
         } catch (Exception e) {
-            log.warn("Failed to send welcome email to {}: {}", saved.getEmail(), e.getMessage());
+            log.warn("Failed to send welcome/verification email to {}: {}", saved.getEmail(), e.getMessage());
         }
 
         log.info("User registered successfully with id: {}", saved.getId());
@@ -110,6 +122,9 @@ public class AuthService {
         UUID userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new UnauthorizedException("Account is not active");
+        }
         log.info("Token refreshed for user id: {}", userId);
         return buildAuthResult(user);
     }
@@ -117,6 +132,107 @@ public class AuthService {
     public void logout(String refreshToken) {
         log.info("Logging out user, blacklisting token");
         refreshTokenBlacklist.blacklist(refreshToken);
+    }
+
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request) {
+        String email = request.getEmail().trim().toLowerCase();
+        log.info("Processing forgot-password for email: {}", email);
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) {
+            log.info("Forgot password requested for non-existent email: {}", email);
+            return; // Return silently for security
+        }
+
+        User user = userOpt.get();
+        passwordResetTokenRepository.invalidateActiveTokensForUser(user);
+
+        String token = UUID.randomUUID().toString().replace("-", "");
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .user(user)
+                .token(token)
+                .expiresAt(java.time.LocalDateTime.now().plusHours(2))
+                .used(false)
+                .build();
+        passwordResetTokenRepository.save(resetToken);
+
+        try {
+            emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), token);
+        } catch (Exception e) {
+            log.warn("Failed to send password reset email to {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        log.info("Processing password reset with token");
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(request.getToken().trim())
+                .orElseThrow(() -> new BadRequestException("Invalid or expired password reset token"));
+
+        if (resetToken.isUsed() || resetToken.isExpired()) {
+            throw new BadRequestException("Password reset token has expired or has already been used");
+        }
+
+        User user = resetToken.getUser();
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        resetToken.setUsed(true);
+        passwordResetTokenRepository.save(resetToken);
+        log.info("Password successfully reset for user: {}", user.getEmail());
+    }
+
+    @Transactional
+    public void sendVerificationToken(User user) {
+        emailVerificationTokenRepository.invalidateActiveTokensForUser(user);
+
+        String token = UUID.randomUUID().toString().replace("-", "");
+        EmailVerificationToken verificationToken = EmailVerificationToken.builder()
+                .user(user)
+                .token(token)
+                .expiresAt(java.time.LocalDateTime.now().plusHours(24))
+                .used(false)
+                .build();
+        emailVerificationTokenRepository.save(verificationToken);
+
+        try {
+            emailService.sendEmailVerificationEmail(user.getEmail(), user.getFullName(), token);
+        } catch (Exception e) {
+            log.warn("Failed to send verification email to {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void verifyEmail(String token) {
+        log.info("Verifying email with token");
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(token.trim())
+                .orElseThrow(() -> new BadRequestException("Invalid or expired email verification token"));
+
+        if (verificationToken.isUsed() || verificationToken.isExpired()) {
+            throw new BadRequestException("Email verification token has expired or has already been used");
+        }
+
+        User user = verificationToken.getUser();
+        user.setEmailVerified(true);
+        userRepository.save(user);
+
+        verificationToken.setUsed(true);
+        emailVerificationTokenRepository.save(verificationToken);
+        log.info("Email successfully verified for user: {}", user.getEmail());
+    }
+
+    @Transactional
+    public void resendVerification(String email) {
+        String cleanEmail = email.trim().toLowerCase();
+        log.info("Resending verification email for: {}", cleanEmail);
+        User user = userRepository.findByEmail(cleanEmail)
+                .orElseThrow(() -> new BadRequestException("User with email " + cleanEmail + " not found"));
+
+        if (user.isEmailVerified()) {
+            throw new BadRequestException("Email address is already verified");
+        }
+
+        sendVerificationToken(user);
     }
 
     private AuthResult buildAuthResult(User user) {
@@ -153,6 +269,7 @@ public class AuthService {
                 .roles(roleNames)
                 .branchRoles(branchRoles)
                 .profileImageUrl(user.getProfileImageUrl())
+                .emailVerified(user.isEmailVerified())
                 .build();
 
         return new AuthResult(response, refreshToken);

@@ -8,7 +8,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api, { extractErrorMessage } from '../lib/api';
-import { defaultShopId, defaultBranchId } from '../stores/shopStore';
+import { useDefaultShopId, useDefaultBranchId } from '../stores/shopStore';
 import type { PageResponse, Sale, SaleItem } from '../types';
 
 interface SaleDetail extends Sale {
@@ -22,8 +22,8 @@ interface Line {
 }
 
 export default function ReturnsPage() {
-  const shopId = defaultShopId();
-  const branchId = defaultBranchId();
+  const shopId = useDefaultShopId();
+  const branchId = useDefaultBranchId();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);

@@ -29,6 +29,9 @@ public class ProductResponse {
     private String description;
     private BigDecimal purchasePrice;
     private BigDecimal sellingPrice;
+    private BigDecimal effectiveCost;
+    private BigDecimal suggestedSellingPrice;
+    private BigDecimal profitMarginPercent;
     private Boolean vatApplicable;
     private BigDecimal vatRate;
     private UUID taxId;

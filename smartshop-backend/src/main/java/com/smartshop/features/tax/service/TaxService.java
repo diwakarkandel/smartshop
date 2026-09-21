@@ -1,5 +1,6 @@
 package com.smartshop.features.tax.service;
 
+import com.smartshop.features.audit.service.AuditService;
 import com.smartshop.features.shop.entity.Shop;
 import com.smartshop.features.shop.repository.ShopRepository;
 import com.smartshop.features.tax.dto.*;
@@ -7,6 +8,7 @@ import com.smartshop.features.tax.entity.Tax;
 import com.smartshop.features.tax.entity.TaxRate;
 import com.smartshop.features.tax.repository.TaxRateRepository;
 import com.smartshop.features.tax.repository.TaxRepository;
+import com.smartshop.security.BranchScopeGuard;
 import com.smartshop.security.SecurityUtils;
 import com.smartshop.security.ShopAdminGuard;
 import com.smartshop.shared.exception.BadRequestException;
@@ -30,6 +32,8 @@ public class TaxService {
     private final TaxRateRepository taxRateRepository;
     private final ShopRepository shopRepository;
     private final ShopAdminGuard shopAdminGuard;
+    private final BranchScopeGuard branchScopeGuard;
+    private final AuditService auditService;
 
     // ─── CRUD ─────────────────────────────────────────────────────────────────
 
@@ -51,6 +55,8 @@ public class TaxService {
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
                 .build();
         taxRepository.save(tax);
+        auditService.log("CREATE", "Tax", tax.getId().toString(), null,
+                tax.getName() + " (" + tax.getType() + ")");
         log.info("Created tax '{}' for shop {}", tax.getName(), shop.getId());
 
         if (request.getRates() != null) {
@@ -64,13 +70,13 @@ public class TaxService {
     @Transactional(readOnly = true)
     public TaxResponse get(UUID taxId) {
         Tax tax = findTax(taxId);
-        shopAdminGuard.requireShopAdmin(SecurityUtils.currentUserId(), tax.getShop().getId());
+        branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), tax.getShop().getId());
         return toResponse(tax);
     }
 
     @Transactional(readOnly = true)
     public List<TaxResponse> listByShop(UUID shopId, boolean activeOnly) {
-        shopAdminGuard.requireShopAdmin(SecurityUtils.currentUserId(), shopId);
+        branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), shopId);
         List<Tax> taxes = activeOnly
                 ? taxRepository.findByShopIdAndIsActiveTrue(shopId)
                 : taxRepository.findByShopId(shopId);
@@ -87,6 +93,7 @@ public class TaxService {
             throw new BadRequestException("A tax with name '" + request.getName() + "' already exists for this shop");
         }
 
+        String oldValue = tax.getName() + " (" + tax.getType() + ", active=" + tax.getIsActive() + ")";
         tax.setName(request.getName());
         tax.setType(request.getType());
         tax.setDescription(request.getDescription());
@@ -94,6 +101,8 @@ public class TaxService {
             tax.setIsActive(request.getIsActive());
         }
         taxRepository.save(tax);
+        auditService.log("UPDATE", "Tax", tax.getId().toString(), oldValue,
+                tax.getName() + " (" + tax.getType() + ", active=" + tax.getIsActive() + ")");
         log.info("Updated tax '{}' (id={})", tax.getName(), taxId);
         return toResponse(tax);
     }
@@ -102,6 +111,8 @@ public class TaxService {
     public void delete(UUID taxId) {
         Tax tax = findTax(taxId);
         shopAdminGuard.requireShopAdmin(SecurityUtils.currentUserId(), tax.getShop().getId());
+        auditService.log("DELETE", "Tax", tax.getId().toString(),
+                tax.getName() + " (" + tax.getType() + ")", null);
         taxRepository.delete(tax);
         log.info("Deleted tax id={}", taxId);
     }
@@ -116,6 +127,8 @@ public class TaxService {
             throw new BadRequestException("validTo must be on or after validFrom");
         }
         TaxRate rate = saveTaxRate(tax, request);
+        auditService.log("ADD_RATE", "Tax", tax.getId().toString(), null,
+                "rate=" + rate.getRate() + "% from " + rate.getValidFrom());
         log.info("Added tax rate {} for tax {} effective {}", rate.getRate(), taxId, rate.getValidFrom());
         return toRateResponse(rate);
     }
@@ -123,7 +136,7 @@ public class TaxService {
     @Transactional(readOnly = true)
     public List<TaxRateResponse> getRates(UUID taxId) {
         Tax tax = findTax(taxId);
-        shopAdminGuard.requireShopAdmin(SecurityUtils.currentUserId(), tax.getShop().getId());
+        branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), tax.getShop().getId());
         return taxRateRepository.findByTaxIdOrderByValidFromDesc(taxId).stream()
                 .map(this::toRateResponse).toList();
     }

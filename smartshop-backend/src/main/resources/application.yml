@@ -23,8 +23,8 @@ spring:
     locations: classpath:db/migration
   servlet:
     multipart:
-      max-file-size: 2MB
-      max-request-size: 2MB
+      max-file-size: 10MB
+      max-request-size: 10MB
   jackson:
     default-property-inclusion: non_null
 

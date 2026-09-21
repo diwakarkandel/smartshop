@@ -1,5 +1,6 @@
 package com.smartshop.features.purchaseReturn.service;
 
+import com.smartshop.features.audit.service.AuditService;
 import com.smartshop.features.branch.entity.Branch;
 import com.smartshop.features.branch.repository.BranchRepository;
 import com.smartshop.features.inventory.service.InventoryService;
@@ -51,6 +52,7 @@ public class PurchaseReturnService {
     private final UserRepository userRepository;
     private final InventoryService inventoryService;
     private final BranchScopeGuard branchScopeGuard;
+    private final AuditService auditService;
 
     @Transactional
     public PurchaseReturnResponse create(PurchaseReturnRequest request) {
@@ -119,6 +121,8 @@ public class PurchaseReturnService {
             item.setPurchaseReturn(saved);
             purchaseReturnItemRepository.save(item);
         }
+        auditService.log("CREATE", "PurchaseReturn", saved.getId().toString(), null,
+                saved.getReturnNumber() + " refund=" + saved.getRefundAmount());
         log.info("Purchase return {} created with refund amount {}", saved.getReturnNumber(), saved.getRefundAmount());
         return toResponse(saved);
     }

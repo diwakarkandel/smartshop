@@ -31,7 +31,7 @@ public class StockMovementController {
     private final InventoryService inventoryService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PageResponse<StockMovementResponse>>> list(
             @RequestParam UUID shopId,
             @RequestParam(defaultValue = AppConstants.DEFAULT_PAGE) int page,

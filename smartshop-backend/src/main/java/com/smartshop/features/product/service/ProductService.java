@@ -11,6 +11,7 @@ import com.smartshop.features.product.dto.ProductResponse;
 import com.smartshop.features.product.dto.ProductSearchResponse;
 import com.smartshop.features.product.entity.Product;
 import com.smartshop.features.product.repository.ProductRepository;
+import com.smartshop.features.pricing.service.PricingService;
 import com.smartshop.features.purchase.repository.PurchaseItemRepository;
 import com.smartshop.features.sale.repository.SaleItemRepository;
 import com.smartshop.features.shop.entity.Shop;
@@ -53,6 +54,7 @@ public class ProductService {
     private final BranchScopeGuard branchScopeGuard;
     private final AuditService auditService;
     private final TaxRepository taxRepository;
+    private final PricingService pricingService;
 
     @Transactional
     public ProductResponse create(ProductRequest request) {
@@ -96,6 +98,7 @@ public class ProductService {
             throw new DuplicateResourceException("SKU " + request.getSku() + " already exists in this shop");
         }
         String oldName = product.getName() + " (SKU: " + product.getSku() + ")";
+        BigDecimal oldSellingPrice = product.getSellingPrice();
         applyRequest(product, request);
         if (request.getCategoryId() != null) {
             product.setCategory(validateCategory(request.getCategoryId(), product.getShop().getId()));
@@ -110,6 +113,12 @@ public class ProductService {
         }
         Product saved = productRepository.save(product);
         auditService.log("UPDATE", "Product", saved.getId().toString(), oldName, saved.getName() + " (SKU: " + saved.getSku() + ")");
+        BigDecimal newSellingPrice = saved.getSellingPrice();
+        if (oldSellingPrice == null ? newSellingPrice != null : newSellingPrice == null
+                || oldSellingPrice.compareTo(newSellingPrice) != 0) {
+            auditService.log("PRICE_CHANGE", "Product", saved.getId().toString(),
+                    String.valueOf(oldSellingPrice), String.valueOf(newSellingPrice));
+        }
         log.info("Product {} updated successfully", id);
         return toResponse(saved);
     }
@@ -132,7 +141,7 @@ public class ProductService {
     public ProductResponse get(UUID id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", id));
-        branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), product.getShop().getId());
+        branchScopeGuard.requireShopAccessOrNotFound(SecurityUtils.currentUserId(), product.getShop().getId());
         return toResponse(product);
     }
 
@@ -254,6 +263,14 @@ public class ProductService {
         if (product.getSellingPrice().compareTo(product.getPurchasePrice()) < 0) {
             warnings.add("Selling price is below purchase price");
         }
+        BigDecimal effectiveCost = pricingService.effectiveCost(product, product.getShop().getId());
+        BigDecimal suggestedSellingPrice = pricingService.suggestSellingPrice(product, null);
+        BigDecimal profitMarginPercent = null;
+        if (product.getSellingPrice() != null && product.getSellingPrice().compareTo(BigDecimal.ZERO) > 0) {
+            profitMarginPercent = product.getSellingPrice().subtract(effectiveCost)
+                    .multiply(new BigDecimal("100"))
+                    .divide(product.getSellingPrice(), 2, RoundingMode.HALF_UP);
+        }
         return ProductResponse.builder()
                 .id(product.getId())
                 .shopId(product.getShop().getId())
@@ -267,6 +284,9 @@ public class ProductService {
                 .description(product.getDescription())
                 .purchasePrice(product.getPurchasePrice())
                 .sellingPrice(product.getSellingPrice())
+                .effectiveCost(effectiveCost)
+                .suggestedSellingPrice(suggestedSellingPrice)
+                .profitMarginPercent(profitMarginPercent)
                 .vatApplicable(product.getVatApplicable())
                 .vatRate(product.getVatRate())
                 .taxId(product.getTax() == null ? null : product.getTax().getId())

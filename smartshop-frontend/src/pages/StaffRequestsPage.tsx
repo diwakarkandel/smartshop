@@ -7,7 +7,7 @@ import {
 import { useState } from 'react';
 import api, { extractErrorMessage } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
-import { defaultShopId } from '../stores/shopStore';
+import { useDefaultShopId } from '../stores/shopStore';
 import type { ApiResponse, Branch, StaffInvitation } from '../types';
 
 const ASSIGNABLE_ROLES = ['CASHIER', 'MANAGER', 'INVENTORY_STAFF'];
@@ -19,7 +19,7 @@ function roleLabel(role: string): string {
 
 export default function StaffRequestsPage() {
   const hasRole = useAuthStore((s) => s.hasRole);
-  const shopId = defaultShopId();
+  const shopId = useDefaultShopId();
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');

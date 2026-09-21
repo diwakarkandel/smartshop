@@ -36,7 +36,13 @@ public class ShopRegistrationController {
 
     private final ShopRegistrationService shopRegistrationService;
 
+    /**
+     * Only users who do NOT already have a SUPER_ADMIN or SHOP_ADMIN role may apply.
+     * - SUPER_ADMIN manages the platform; they approve/reject applications, not submit them.
+     * - An existing SHOP_ADMIN already owns a shop; they cannot register a second shop via this flow.
+     */
     @PostMapping("/apply")
+    @PreAuthorize("!hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<ApiResponse<ShopRegistrationResponse>> apply(
             @Valid @RequestBody ShopRegistrationApplyRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -44,7 +50,9 @@ public class ShopRegistrationController {
                         shopRegistrationService.apply(request)));
     }
 
+    /** Applicant views their own submitted application — blocked for SUPER_ADMIN (they use GET /) */
     @GetMapping("/my-application")
+    @PreAuthorize("!hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<ShopRegistrationResponse>> getMyApplication() {
         return ResponseEntity.ok(ApiResponse.success(shopRegistrationService.getMyApplication()));
     }

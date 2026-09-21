@@ -24,7 +24,7 @@ public class TaxController {
      * Create a new tax for a shop. Shop admin only.
      */
     @PostMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<TaxResponse> create(@Valid @RequestBody TaxRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(taxService.create(request));
     }
@@ -33,7 +33,7 @@ public class TaxController {
      * GET /api/v1/taxes/{id}
      */
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<TaxResponse> get(@PathVariable UUID id) {
         return ResponseEntity.ok(taxService.get(id));
     }
@@ -43,7 +43,7 @@ public class TaxController {
      * List taxes for a shop, optionally filtering to active-only.
      */
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<List<TaxResponse>> list(
             @RequestParam UUID shopId,
             @RequestParam(defaultValue = "true") boolean activeOnly) {
@@ -54,7 +54,7 @@ public class TaxController {
      * PUT /api/v1/taxes/{id}
      */
     @PutMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<TaxResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody TaxRequest request) {
@@ -65,7 +65,7 @@ public class TaxController {
      * DELETE /api/v1/taxes/{id}
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         taxService.delete(id);
         return ResponseEntity.noContent().build();
@@ -78,7 +78,7 @@ public class TaxController {
      * Add a new effective-date rate to an existing tax.
      */
     @PostMapping("/{id}/rates")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<TaxRateResponse> addRate(
             @PathVariable UUID id,
             @Valid @RequestBody TaxRateRequest request) {
@@ -90,7 +90,7 @@ public class TaxController {
      * List all rate history for a tax.
      */
     @GetMapping("/{id}/rates")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<List<TaxRateResponse>> getRates(@PathVariable UUID id) {
         return ResponseEntity.ok(taxService.getRates(id));
     }

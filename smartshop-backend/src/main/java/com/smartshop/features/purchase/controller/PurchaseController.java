@@ -1,5 +1,6 @@
 package com.smartshop.features.purchase.controller;
 
+import com.smartshop.features.document.service.DocumentService;
 import com.smartshop.features.purchase.dto.PurchaseRequest;
 import com.smartshop.features.purchase.dto.PurchaseResponse;
 import com.smartshop.features.purchase.service.PurchaseService;
@@ -15,7 +16,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +40,7 @@ import java.util.UUID;
 public class PurchaseController {
 
     private final PurchaseService purchaseService;
+    private final DocumentService documentService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT')")
@@ -61,6 +65,16 @@ public class PurchaseController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PurchaseResponse>> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.success(purchaseService.get(id)));
+    }
+
+    @GetMapping("/{id}/po/pdf")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT')")
+    public ResponseEntity<byte[]> purchaseOrderPdf(@PathVariable UUID id) {
+        byte[] pdf = documentService.purchaseOrder(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"purchase-order.pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     @PostMapping

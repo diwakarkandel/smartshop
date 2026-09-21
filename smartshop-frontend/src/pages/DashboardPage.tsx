@@ -30,8 +30,9 @@ import {
   YAxis,
   CartesianGrid,
 } from 'recharts';
+import { alpha } from '@mui/material/styles';
 import api from '../lib/api';
-import { defaultShopId, defaultBranchId } from '../stores/shopStore';
+import { useDefaultShopId, useDefaultBranchId } from '../stores/shopStore';
 import type { DashboardData } from '../types';
 
 const COLORS = ['#1B4332', '#2D6A4F', '#B45309', '#475569', '#B91C1C'];
@@ -41,8 +42,8 @@ function formatMoney(n: number) {
 }
 
 export default function DashboardPage() {
-  const shopId = defaultShopId();
-  const branchId = defaultBranchId();
+  const shopId = useDefaultShopId();
+  const branchId = useDefaultBranchId();
   const today = new Date().toISOString().slice(0, 10);
 
   const { data, isLoading, error } = useQuery({
@@ -83,12 +84,12 @@ export default function DashboardPage() {
   }));
 
   const stats = [
-    { label: 'Today Sales', value: data.totalSales, icon: <PointOfSaleIcon /> },
-    { label: 'Sales Count', value: data.salesCount, icon: <TrendingUpIcon />, isCount: true },
-    { label: 'Today Purchases', value: data.totalPurchases, icon: <ShoppingCartIcon /> },
-    { label: 'Today Expenses', value: data.totalExpenses, icon: <AccountBalanceWalletIcon /> },
-    { label: 'Gross Profit', value: data.grossProfit, icon: <TrendingUpIcon /> },
-    { label: 'Low Stock Items', value: data.lowStockCount, icon: <ShoppingCartIcon />, isCount: true },
+    { label: 'Today Sales', value: data.totalSales, icon: <PointOfSaleIcon />, color: '#2E7D32' },
+    { label: 'Sales Count', value: data.salesCount, icon: <TrendingUpIcon />, isCount: true, color: '#2D6A4F' },
+    { label: 'Today Purchases', value: data.totalPurchases, icon: <ShoppingCartIcon />, color: '#40916C' },
+    { label: 'Today Expenses', value: data.totalExpenses, icon: <AccountBalanceWalletIcon />, color: '#B45309' },
+    { label: 'Gross Profit', value: data.grossProfit, icon: <TrendingUpIcon />, color: '#1B4332' },
+    { label: 'Low Stock Items', value: data.lowStockCount, icon: <ShoppingCartIcon />, isCount: true, color: '#B91C1C' },
   ];
 
   return (
@@ -96,21 +97,31 @@ export default function DashboardPage() {
       <Typography variant="h5" sx={{ mb: 3 }}>
         Dashboard
       </Typography>
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Grid container spacing={2} sx={{ mb: 3 }} className="ss-stagger">
         {stats.map((s) => (
           <Grid item xs={12} sm={6} md={4} key={s.label}>
-            <Card sx={{ p: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Card sx={{ p: 2.25, position: 'relative' }}>
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  opacity: 0.06,
+                  background: `radial-gradient(120px 80px at 100% 0%, ${s.color}, transparent 70%)`,
+                  pointerEvents: 'none',
+                }}
+              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative' }}>
                 <Box
                   sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 2,
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2.5,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: 'primary.main',
                     color: '#fff',
+                    background: `linear-gradient(135deg, ${s.color} 0%, ${alpha(s.color, 0.72)} 100%)`,
+                    boxShadow: `0 6px 16px ${alpha(s.color, 0.32)}`,
                   }}
                 >
                   {s.icon}
@@ -119,7 +130,7 @@ export default function DashboardPage() {
                   <Typography variant="body2" color="text.secondary">
                     {s.label}
                   </Typography>
-                  <Typography variant="h6">
+                  <Typography variant="h6" fontWeight={800}>
                     {s.isCount ? s.value : formatMoney(s.value)}
                   </Typography>
                 </Box>

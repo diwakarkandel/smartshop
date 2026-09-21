@@ -69,6 +69,27 @@ public class BranchScopeGuard {
         throw new ForbiddenException("You do not have access to this shop");
     }
 
+    public void requireShopAccessOrNotFound(UUID userId, UUID shopId) {
+        List<UserBranchRole> grants = userBranchRoleRepository.findByUserIdAndIsActiveTrue(userId);
+        boolean isSuperAdmin = grants.stream()
+                .anyMatch(g -> AppConstants.ROLE_SUPER_ADMIN.equals(g.getRole().getName()));
+        if (isSuperAdmin) {
+            return;
+        }
+        boolean shopGrant = grants.stream()
+                .anyMatch(g -> g.getShop() != null && shopId.equals(g.getShop().getId()));
+        if (shopGrant) {
+            return;
+        }
+        boolean branchOfShopGrant = grants.stream()
+                .anyMatch(g -> g.getBranch() != null
+                        && shopId.equals(g.getBranch().getShop().getId()));
+        if (branchOfShopGrant) {
+            return;
+        }
+        throw new ResourceNotFoundException("Resource not found");
+    }
+
     public void requireSuperAdmin(UUID userId) {
         List<UserBranchRole> grants = userBranchRoleRepository.findByUserIdAndIsActiveTrue(userId);
         boolean isSuperAdmin = grants.stream()

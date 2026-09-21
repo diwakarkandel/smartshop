@@ -25,6 +25,9 @@ public class PurchaseItemRequest {
     @DecimalMin(value = "0.00", message = "Unit cost cannot be negative")
     private BigDecimal unitCost;
 
+    @DecimalMin(value = "0.00", message = "Extra cost cannot be negative")
+    private BigDecimal extraCost;
+
     @DecimalMin(value = "0.00", message = "Discount cannot be negative")
     private BigDecimal discountAmount;
 

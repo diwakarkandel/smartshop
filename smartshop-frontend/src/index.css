@@ -1,0 +1,102 @@
+/* ------------------------------------------------------------------ *
+ * SmartShop global polish: keyframes, base styling, scrollbars.
+ * Kept framework-agnostic so any page can opt in via a class name.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --ss-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* Subtle warm canvas with a hint of depth behind the app shell. */
+  background-color: #f4f6f4;
+  background-image:
+    radial-gradient(1200px 600px at 100% -10%, rgba(45, 106, 79, 0.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(27, 67, 50, 0.05), transparent 55%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Keyframes ---------------------------------------------------- */
+@keyframes ss-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes ss-fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ss-fade-in-scale {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ss-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes ss-pop {
+  0%   { transform: scale(0.9); opacity: 0; }
+  60%  { transform: scale(1.03); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---- Reusable animation utilities -------------------------------- */
+.ss-page {
+  animation: ss-fade-in-up 0.42s var(--ss-ease) both;
+}
+
+.ss-fade {
+  animation: ss-fade-in 0.4s var(--ss-ease) both;
+}
+
+/* Stagger helper — apply to a container; children fade up in sequence. */
+.ss-stagger > * {
+  animation: ss-fade-in-up 0.45s var(--ss-ease) both;
+}
+.ss-stagger > *:nth-child(1)  { animation-delay: 0.02s; }
+.ss-stagger > *:nth-child(2)  { animation-delay: 0.06s; }
+.ss-stagger > *:nth-child(3)  { animation-delay: 0.10s; }
+.ss-stagger > *:nth-child(4)  { animation-delay: 0.14s; }
+.ss-stagger > *:nth-child(5)  { animation-delay: 0.18s; }
+.ss-stagger > *:nth-child(6)  { animation-delay: 0.22s; }
+.ss-stagger > *:nth-child(7)  { animation-delay: 0.26s; }
+.ss-stagger > *:nth-child(8)  { animation-delay: 0.30s; }
+
+/* ---- Scrollbars --------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(27, 67, 50, 0.3) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(27, 67, 50, 0.28);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(27, 67, 50, 0.45);
+}
+
+/* ---- Respect user motion preferences ----------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

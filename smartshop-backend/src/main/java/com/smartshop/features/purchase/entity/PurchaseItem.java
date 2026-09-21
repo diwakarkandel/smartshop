@@ -36,6 +36,9 @@ public class PurchaseItem extends BaseEntity {
     @Column(name = "unit_cost", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitCost;
 
+    @Column(name = "extra_cost", nullable = false, precision = 12, scale = 2)
+    private BigDecimal extraCost = BigDecimal.ZERO;
+
     @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 

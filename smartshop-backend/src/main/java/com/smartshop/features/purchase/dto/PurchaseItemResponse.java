@@ -20,6 +20,8 @@ public class PurchaseItemResponse {
     private String sku;
     private BigDecimal quantity;
     private BigDecimal unitCost;
+    private BigDecimal extraCost;
+    private BigDecimal effectiveCost;
     private BigDecimal discountAmount;
     private BigDecimal vatRate;
     private BigDecimal vatAmount;

@@ -31,7 +31,12 @@ public class StaffInvitationController {
 
     private final StaffInvitationService staffInvitationService;
 
+    /**
+     * Only users who are NOT already a SUPER_ADMIN or SHOP_ADMIN may submit a staff join request.
+     * Fresh registrants have no role yet so they satisfy this constraint automatically.
+     */
     @PostMapping("/join")
+    @PreAuthorize("!hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<ApiResponse<StaffInvitationResponse>> join(
             @Valid @RequestBody StaffJoinRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -40,14 +45,14 @@ public class StaffInvitationController {
     }
 
     @GetMapping("/pending")
-    @PreAuthorize("hasRole('SHOP_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<ApiResponse<List<StaffInvitationResponse>>> listPending(
             @RequestParam UUID shopId) {
         return ResponseEntity.ok(ApiResponse.success(staffInvitationService.listPending(shopId)));
     }
 
     @PostMapping("/{id}/approve")
-    @PreAuthorize("hasRole('SHOP_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<ApiResponse<StaffInvitationResponse>> approve(
             @PathVariable UUID id,
             @Valid @RequestBody StaffInvitationApproveRequest request) {
@@ -56,7 +61,7 @@ public class StaffInvitationController {
     }
 
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasRole('SHOP_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<ApiResponse<StaffInvitationResponse>> reject(
             @PathVariable UUID id,
             @Valid @RequestBody StaffInvitationRejectRequest request) {

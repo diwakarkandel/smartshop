@@ -22,6 +22,7 @@ public class AuthResponse {
     private List<String> roles;
     private List<BranchRoleResponse> branchRoles;
     private String profileImageUrl;
+    private boolean emailVerified;
 
     @Data
     @NoArgsConstructor

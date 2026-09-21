@@ -1,5 +1,6 @@
 package com.smartshop.features.expense.service;
 
+import com.smartshop.features.audit.service.AuditService;
 import com.smartshop.features.branch.entity.Branch;
 import com.smartshop.features.branch.repository.BranchRepository;
 import com.smartshop.features.expense.dto.ExpenseRequest;
@@ -39,6 +40,7 @@ public class ExpenseService {
     private final BranchRepository branchRepository;
     private final UserRepository userRepository;
     private final BranchScopeGuard branchScopeGuard;
+    private final AuditService auditService;
 
     @Transactional
     public ExpenseResponse create(ExpenseRequest request) {
@@ -68,6 +70,8 @@ public class ExpenseService {
         expense.setNote(request.getNote());
         expense.setCreatedBy(createdBy);
         Expense saved = expenseRepository.save(expense);
+        auditService.log("CREATE", "Expense", saved.getId().toString(), null,
+                saved.getTitle() + " (" + saved.getCategory() + "): " + saved.getAmount());
         log.info("Expense created with id: {}", saved.getId());
         return toResponse(saved);
     }
@@ -77,6 +81,7 @@ public class ExpenseService {
         log.info("Updating expense: {}", id);
         Expense expense = getEntity(id);
         branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), expense.getShop().getId());
+        String oldValue = expense.getTitle() + " (" + expense.getCategory() + "): " + expense.getAmount();
         expense.setTitle(request.getTitle());
         expense.setCategory(request.getCategory());
         expense.setAmount(request.getAmount().setScale(2, RoundingMode.HALF_UP));
@@ -94,6 +99,8 @@ public class ExpenseService {
             expense.setBranch(null);
         }
         Expense saved = expenseRepository.save(expense);
+        auditService.log("UPDATE", "Expense", saved.getId().toString(), oldValue,
+                saved.getTitle() + " (" + saved.getCategory() + "): " + saved.getAmount());
         log.info("Expense {} updated successfully", id);
         return toResponse(saved);
     }
@@ -103,6 +110,8 @@ public class ExpenseService {
         log.info("Deleting expense: {}", id);
         Expense expense = getEntity(id);
         branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), expense.getShop().getId());
+        auditService.log("DELETE", "Expense", expense.getId().toString(),
+                expense.getTitle() + " (" + expense.getCategory() + "): " + expense.getAmount(), null);
         expenseRepository.delete(expense);
         log.info("Expense {} deleted", id);
     }

@@ -1,6 +1,7 @@
 package com.smartshop.features.shop.service;
 
 import com.smartshop.features.audit.service.AuditService;
+import com.smartshop.features.branch.service.BranchService;
 import com.smartshop.features.settings.service.SettingsService;
 import com.smartshop.features.shop.dto.ShopRequest;
 import com.smartshop.features.shop.dto.ShopResponse;
@@ -8,6 +9,8 @@ import com.smartshop.features.shop.entity.Shop;
 import com.smartshop.features.shop.repository.ShopRepository;
 import com.smartshop.security.BranchScopeGuard;
 import com.smartshop.security.SecurityUtils;
+import com.smartshop.security.UserPrincipal;
+import com.smartshop.shared.constant.AppConstants;
 import com.smartshop.shared.enumeration.ShopStatus;
 import com.smartshop.shared.exception.DuplicateResourceException;
 import com.smartshop.shared.exception.ResourceNotFoundException;
@@ -18,7 +21,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -29,6 +34,7 @@ public class ShopService {
     private final SettingsService settingsService;
     private final BranchScopeGuard branchScopeGuard;
     private final AuditService auditService;
+    private final BranchService branchService;
 
     @Transactional
     public ShopResponse createShop(ShopRequest request) {
@@ -42,7 +48,8 @@ public class ShopService {
         shop.setStatus(request.getStatus() == null ? ShopStatus.ACTIVE : request.getStatus());
         Shop saved = shopRepository.save(shop);
         settingsService.ensureDefaultSettings(saved, SecurityUtils.currentUserId());
-        
+        branchService.createDefaultMainBranch(saved);
+
         auditService.log("CREATE", "Shop", saved.getId().toString(), null, saved.getName());
         log.info("Shop created successfully with id: {}", saved.getId());
         return toResponse(saved);
@@ -50,19 +57,47 @@ public class ShopService {
 
     @Transactional(readOnly = true)
     public Page<ShopResponse> listShops(String search, Pageable pageable) {
-        Page<Shop> page;
-        if (search == null || search.isBlank()) {
-            page = shopRepository.findAll(pageable);
-        } else {
-            page = shopRepository.findAll(
-                    (root, query, cb) -> cb.like(cb.lower(root.get("name")), "%" + search.toLowerCase() + "%"),
-                    pageable);
+        UserPrincipal caller = SecurityUtils.currentUser();
+
+        if (caller.hasRole(AppConstants.ROLE_SUPER_ADMIN)) {
+            // SUPER_ADMIN: see all shops, optionally filtered by name
+            Page<Shop> page;
+            if (search == null || search.isBlank()) {
+                page = shopRepository.findAll(pageable);
+            } else {
+                page = shopRepository.findAll(
+                        (root, query, cb) -> cb.like(cb.lower(root.get("name")), "%" + search.toLowerCase() + "%"),
+                        pageable);
+            }
+            return page.map(this::toResponse);
         }
+
+        // SHOP_ADMIN / STAFF: scope to their own shop(s) derived from JWT grants
+        Set<UUID> callerShopIds = caller.getBranchRoleGrants().stream()
+                .filter(g -> g.shopId() != null)
+                .map(g -> g.shopId())
+                .collect(Collectors.toSet());
+
+        if (callerShopIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        final String finalTerm = (search == null || search.isBlank()) ? null : "%" + search.toLowerCase() + "%";
+        Page<Shop> page = shopRepository.findAll((root, query, cb) -> {
+            var inOwned = root.get("id").in(callerShopIds);
+            if (finalTerm == null) {
+                return inOwned;
+            }
+            return cb.and(inOwned, cb.like(cb.lower(root.get("name")), finalTerm));
+        }, pageable);
         return page.map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
     public ShopResponse getShop(UUID id) {
+        // Enforce that the caller has access to this shop.
+        // SUPER_ADMIN bypasses inside requireShopAccessOrNotFound; SHOP_ADMIN/STAFF must own it.
+        branchScopeGuard.requireShopAccessOrNotFound(SecurityUtils.currentUserId(), id);
         return toResponse(getEntity(id));
     }
 

@@ -1,5 +1,6 @@
 package com.smartshop.features.sale.controller;
 
+import com.smartshop.features.document.service.DocumentService;
 import com.smartshop.features.sale.dto.SaleRequest;
 import com.smartshop.features.sale.dto.SaleResponse;
 import com.smartshop.features.sale.service.SaleService;
@@ -15,7 +16,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,9 +40,10 @@ import java.util.UUID;
 public class SaleController {
 
     private final SaleService saleService;
+    private final DocumentService documentService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','CASHIER','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PageResponse<SaleResponse>>> list(
             @RequestParam UUID shopId,
             @RequestParam(defaultValue = AppConstants.DEFAULT_PAGE) int page,
@@ -47,6 +51,7 @@ public class SaleController {
             @RequestParam(defaultValue = "billDate,desc") String sort,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) UUID branchId,
+            @RequestParam(required = false) UUID customerId,
             @RequestParam(required = false) PaymentStatus paymentStatus,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
@@ -54,13 +59,24 @@ public class SaleController {
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Direction.fromString(sortParts.length > 1 ? sortParts[1] : "desc"), sortParts[0]));
         return ResponseEntity.ok(ApiResponse.success(PageResponse.from(
-                saleService.list(shopId, search, branchId, paymentStatus, dateFrom, dateTo, pageable))));
+                saleService.list(shopId, search, branchId, customerId, paymentStatus, dateFrom, dateTo, pageable))));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','CASHIER','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<SaleResponse>> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.success(saleService.get(id)));
+    }
+
+    @GetMapping("/{id}/invoice/pdf")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','ACCOUNTANT')")
+    public ResponseEntity<byte[]> invoicePdf(@PathVariable UUID id) {
+        byte[] pdf = documentService.saleInvoice(id);
+        String filename = "sale-invoice.pdf";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     @PostMapping

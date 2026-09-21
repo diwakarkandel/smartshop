@@ -24,6 +24,7 @@ public class UserResponse {
     private String phone;
     private String profileImageUrl;
     private UserStatus status;
+    private boolean emailVerified;
     private List<UserBranchRoleRef> branchRoles;
     private LocalDateTime createdAt;
 

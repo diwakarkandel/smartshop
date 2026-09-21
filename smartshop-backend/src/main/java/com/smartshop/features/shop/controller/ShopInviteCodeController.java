@@ -24,13 +24,13 @@ public class ShopInviteCodeController {
     private final ShopInviteCodeService shopInviteCodeService;
 
     @GetMapping
-    @PreAuthorize("hasRole('SHOP_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<ApiResponse<InviteCodeResponse>> getInviteCode(@PathVariable UUID shopId) {
         return ResponseEntity.ok(ApiResponse.success(shopInviteCodeService.getInviteCode(shopId)));
     }
 
     @PostMapping("/regenerate")
-    @PreAuthorize("hasRole('SHOP_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN')")
     public ResponseEntity<ApiResponse<InviteCodeResponse>> regenerateInviteCode(@PathVariable UUID shopId) {
         return ResponseEntity.ok(ApiResponse.success("New invite code generated",
                 shopInviteCodeService.regenerateInviteCode(shopId)));

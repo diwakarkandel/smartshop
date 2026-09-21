@@ -2,6 +2,8 @@ package com.smartshop.features.shopRegistration.service;
 
 import com.smartshop.features.role.entity.Role;
 import com.smartshop.features.role.repository.RoleRepository;
+import com.smartshop.features.branch.service.BranchService;
+import com.smartshop.features.settings.service.SettingsService;
 import com.smartshop.features.shop.entity.Shop;
 import com.smartshop.features.shop.repository.ShopRepository;
 import com.smartshop.features.shop.service.ShopInviteCodeService;
@@ -45,6 +47,8 @@ public class ShopRegistrationService {
     private final RoleRepository roleRepository;
     private final UserBranchRoleRepository userBranchRoleRepository;
     private final ShopInviteCodeService shopInviteCodeService;
+    private final SettingsService settingsService;
+    private final BranchService branchService;
     private final ShopRegistrationMapper shopRegistrationMapper;
     private final EmailService emailService;
 
@@ -102,6 +106,8 @@ public class ShopRegistrationService {
         Shop shop = createShopFromRegistration(registration);
         assignShopAdminRole(registration.getUser(), shop);
         shopInviteCodeService.createInviteCode(shop);
+        settingsService.ensureDefaultSettings(shop, registration.getUser().getId());
+        branchService.createDefaultMainBranch(shop);
 
         registration.setStatus(RegistrationStatus.APPROVED);
         ShopRegistration saved = shopRegistrationRepository.save(registration);

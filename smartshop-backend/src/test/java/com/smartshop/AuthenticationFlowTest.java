@@ -25,6 +25,15 @@ class AuthenticationFlowTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private com.smartshop.features.user.repository.UserRepository userRepository;
+
+    @Autowired
+    private com.smartshop.features.auth.repository.PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Autowired
+    private com.smartshop.features.auth.repository.EmailVerificationTokenRepository emailVerificationTokenRepository;
+
     @Test
     void registerLoginRefreshAndLogout() throws Exception {
         String email = "auth.user@test.com";
@@ -97,5 +106,100 @@ class AuthenticationFlowTest {
                                 {"email":"nobody@test.com","password":"wrongpass1"}
                                 """))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void forgotPasswordAndResetPasswordFlow() throws Exception {
+        String email = "reset.test@example.com";
+        String oldPassword = "oldPassword123";
+        String newPassword = "newPassword456";
+
+        // 1. Register user
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"firstName":"Reset","lastName":"Tester","email":"%s","password":"%s"}
+                                """.formatted(email, oldPassword)))
+                .andExpect(status().isCreated());
+
+        // 2. Request password reset
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s"}
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // 3. Retrieve token from repository
+        var user = userRepository.findByEmail(email).orElseThrow();
+        var tokens = passwordResetTokenRepository.findAll().stream()
+                .filter(t -> t.getUser().getId().equals(user.getId()) && !t.isUsed())
+                .toList();
+        org.junit.jupiter.api.Assertions.assertFalse(tokens.isEmpty(), "Reset token should be created");
+        String resetToken = tokens.get(tokens.size() - 1).getToken();
+
+        // 4. Reset password
+        mockMvc.perform(post("/api/v1/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"token":"%s","newPassword":"%s"}
+                                """.formatted(resetToken, newPassword)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // 5. Old password no longer works
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","password":"%s"}
+                                """.formatted(email, oldPassword)))
+                .andExpect(status().isUnauthorized());
+
+        // 6. New password works successfully!
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","password":"%s"}
+                                """.formatted(email, newPassword)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void emailVerificationFlow() throws Exception {
+        String email = "verify.test@example.com";
+        String password = "secretPassword123";
+
+        // 1. Register user
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"firstName":"Verify","lastName":"User","email":"%s","password":"%s"}
+                                """.formatted(email, password)))
+                .andExpect(status().isCreated());
+
+        var user = userRepository.findByEmail(email).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertFalse(user.isEmailVerified(), "New user should not be verified yet");
+
+        // 2. Retrieve verification token
+        var tokens = emailVerificationTokenRepository.findAll().stream()
+                .filter(t -> t.getUser().getId().equals(user.getId()) && !t.isUsed())
+                .toList();
+        org.junit.jupiter.api.Assertions.assertFalse(tokens.isEmpty(), "Verification token should exist");
+        String verifyToken = tokens.get(tokens.size() - 1).getToken();
+
+        // 3. Verify email endpoint
+        mockMvc.perform(post("/api/v1/auth/verify-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"token":"%s"}
+                                """.formatted(verifyToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // 4. Confirm user entity updated
+        var updatedUser = userRepository.findByEmail(email).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertTrue(updatedUser.isEmailVerified(), "User email should now be verified");
     }
 }

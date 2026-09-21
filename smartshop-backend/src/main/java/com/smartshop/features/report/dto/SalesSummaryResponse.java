@@ -21,5 +21,8 @@ public class SalesSummaryResponse {
     private BigDecimal totalDiscount;
     private BigDecimal totalCogs;
     private BigDecimal grossProfit;
+    private BigDecimal totalExpenses;
+    /** Net profit = gross profit (revenue - COGS) minus total operating expenses in the period. */
+    private BigDecimal netProfit;
     private long saleCount;
 }

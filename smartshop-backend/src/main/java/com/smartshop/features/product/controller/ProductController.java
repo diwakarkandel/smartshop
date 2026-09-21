@@ -39,14 +39,14 @@ public class ProductController {
     private final ProductService productService;
 
     @GetMapping("/search")
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<List<ProductSearchResponse>>> search(@RequestParam UUID branchId,
                                                                            @RequestParam String query) {
         return ResponseEntity.ok(ApiResponse.success(productService.search(branchId, query)));
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> list(
             @RequestParam UUID shopId,
             @RequestParam(defaultValue = AppConstants.DEFAULT_PAGE) int page,
@@ -63,7 +63,7 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<ProductResponse>> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.success(productService.get(id)));
     }

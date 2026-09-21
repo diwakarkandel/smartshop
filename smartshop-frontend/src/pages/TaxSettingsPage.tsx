@@ -39,7 +39,7 @@ import {
   type TaxPayload,
   type TaxRatePayload,
 } from '../lib/api';
-import { defaultShopId } from '../stores/shopStore';
+import { useDefaultShopId } from '../stores/shopStore';
 import type { Tax, TaxType } from '../types';
 
 const today = (): string => {
@@ -412,7 +412,7 @@ function formatRateWindow(rate: { rate: number; validFrom: string; validTo?: str
 }
 
 export default function TaxSettingsPage() {
-  const shopId = defaultShopId();
+  const shopId = useDefaultShopId();
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [createOpen, setCreateOpen] = useState(false);

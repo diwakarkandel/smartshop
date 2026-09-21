@@ -36,6 +36,12 @@ public class SaleItem extends BaseEntity {
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
+    @Column(name = "unit_cost_at_sale", nullable = false, precision = 12, scale = 2)
+    private BigDecimal unitCostAtSale = BigDecimal.ZERO;
+
+    @Column(name = "line_profit", nullable = false, precision = 12, scale = 2)
+    private BigDecimal lineProfit = BigDecimal.ZERO;
+
     @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 

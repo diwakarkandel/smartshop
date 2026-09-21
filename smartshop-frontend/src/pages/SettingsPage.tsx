@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Box, Card, Typography, TextField, Button, Alert, CircularProgress } from '@mui/material';
 import api, { extractErrorMessage } from '../lib/api';
-import { defaultShopId } from '../stores/shopStore';
+import { useDefaultShopId } from '../stores/shopStore';
 
 export default function SettingsPage() {
-  const shopId = defaultShopId();
+  const shopId = useDefaultShopId();
   const queryClient = useQueryClient();
   const [vatRate, setVatRate] = useState('');
   const [message, setMessage] = useState('');

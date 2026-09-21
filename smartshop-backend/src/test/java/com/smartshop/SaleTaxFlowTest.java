@@ -49,7 +49,7 @@ class SaleTaxFlowTest {
         String suffix = "tax" + seq;
         String superEmail = "super." + suffix + "@test.com";
         String adminEmail = "admin." + suffix + "@test.com";
-        String pan = String.valueOf(200000000L + seq);
+        String pan = String.valueOf(250000000L + seq);
 
         factory.createSuperAdmin(superEmail, PASSWORD);
         String superAdminToken = login(superEmail);

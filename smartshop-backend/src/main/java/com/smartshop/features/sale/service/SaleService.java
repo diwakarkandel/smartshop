@@ -139,11 +139,17 @@ public class SaleService {
                     .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
             BigDecimal lineTotal = taxable.add(vatAmount);
 
+            BigDecimal unitCostAtSale = inventoryService.getAverageCost(branch.getId(), product.getId());
+            BigDecimal cogs = qty.multiply(unitCostAtSale).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lineProfit = taxable.subtract(cogs).setScale(2, RoundingMode.HALF_UP);
+
             SaleItem item = new SaleItem();
             item.setSale(sale);
             item.setProduct(product);
             item.setQuantity(qty);
             item.setUnitPrice(unitPrice);
+            item.setUnitCostAtSale(unitCostAtSale);
+            item.setLineProfit(lineProfit);
             item.setDiscountAmount(itemDiscount);
             item.setVatRate(vatRate);
             item.setVatAmount(vatAmount);
@@ -216,12 +222,12 @@ public class SaleService {
     public SaleResponse get(UUID id) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", id));
-        branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), sale.getShop().getId());
+        branchScopeGuard.requireShopAccessOrNotFound(SecurityUtils.currentUserId(), sale.getShop().getId());
         return toResponse(sale);
     }
 
     @Transactional(readOnly = true)
-    public Page<SaleResponse> list(UUID shopId, String search, UUID branchId, PaymentStatus paymentStatus,
+    public Page<SaleResponse> list(UUID shopId, String search, UUID branchId, UUID customerId, PaymentStatus paymentStatus,
                                    LocalDate dateFrom, LocalDate dateTo, Pageable pageable) {
         branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), shopId);
         Page<Sale> page = saleRepository.findAll((root, query, cb) -> {
@@ -229,6 +235,9 @@ public class SaleService {
             predicates.add(cb.equal(root.get("shop").get("id"), shopId));
             if (branchId != null) {
                 predicates.add(cb.equal(root.get("branch").get("id"), branchId));
+            }
+            if (customerId != null) {
+                predicates.add(cb.equal(root.get("customer").get("id"), customerId));
             }
             if (paymentStatus != null) {
                 predicates.add(cb.equal(root.get("paymentStatus"), paymentStatus));
@@ -240,7 +249,12 @@ public class SaleService {
                 predicates.add(cb.lessThanOrEqualTo(root.get("billDate"), dateTo));
             }
             if (search != null && !search.isBlank()) {
-                predicates.add(cb.like(cb.lower(root.get("invoiceNumber")), "%" + search.toLowerCase() + "%"));
+                String term = "%" + search.toLowerCase() + "%";
+                var customerJoin = root.join("customer", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("invoiceNumber")), term),
+                        cb.like(cb.lower(customerJoin.get("name")), term),
+                        cb.like(cb.lower(customerJoin.get("phone")), term)));
             }
             query.orderBy(cb.desc(root.get("billDate")));
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -257,7 +271,7 @@ public class SaleService {
         PaymentStatus oldStatus = sale.getPaymentStatus();
         sale.setPaymentStatus(request.getPaymentStatus());
         saleRepository.save(sale);
-        auditService.log("UPDATE", "Sale", sale.getId().toString(),
+        auditService.log("PAYMENT_STATUS_CHANGE", "Sale", sale.getId().toString(),
                 oldStatus == null ? null : oldStatus.name(), request.getPaymentStatus().name());
         return toResponse(sale);
     }
@@ -277,6 +291,8 @@ public class SaleService {
                         .sku(item.getProduct().getSku())
                         .quantity(item.getQuantity())
                         .unitPrice(item.getUnitPrice())
+                        .unitCostAtSale(item.getUnitCostAtSale())
+                        .lineProfit(item.getLineProfit())
                         .discountAmount(item.getDiscountAmount())
                         .vatRate(item.getVatRate())
                         .vatAmount(item.getVatAmount())
@@ -293,6 +309,7 @@ public class SaleService {
                 .branchCode(sale.getBranch().getCode())
                 .customerId(sale.getCustomer() == null ? null : sale.getCustomer().getId())
                 .customerName(sale.getCustomer() == null ? null : sale.getCustomer().getName())
+                .customerPhone(sale.getCustomer() == null ? null : sale.getCustomer().getPhone())
                 .subtotal(sale.getSubtotal())
                 .discountAmount(sale.getDiscountAmount())
                 .taxableAmount(sale.getTaxableAmount())

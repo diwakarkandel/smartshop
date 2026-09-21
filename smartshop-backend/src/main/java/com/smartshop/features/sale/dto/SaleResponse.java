@@ -28,6 +28,7 @@ public class SaleResponse {
     private String branchCode;
     private UUID customerId;
     private String customerName;
+    private String customerPhone;
     private BigDecimal subtotal;
     private BigDecimal discountAmount;
     private BigDecimal taxableAmount;

@@ -21,17 +21,24 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  Autocomplete,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  MenuItem,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
+import PersonSearchIcon from '@mui/icons-material/PersonSearch';
 import api, { extractErrorMessage } from '../lib/api';
 import { computeTaxBreakdown, round2 } from '../lib/tax';
 import TaxTotals from '../components/billing/TaxTotals';
-import { defaultShopId, defaultBranchId } from '../stores/shopStore';
-import type { ProductSearch, Sale } from '../types';
+import { useDefaultShopId, useDefaultBranchId, useShopStore } from '../stores/shopStore';
+import type { Branch, Customer, PageResponse, ProductSearch, Sale } from '../types';
 
 interface CartLine {
   product: ProductSearch;
@@ -39,14 +46,64 @@ interface CartLine {
 }
 
 export default function PosPage() {
-  const shopId = defaultShopId();
-  const branchId = defaultBranchId();
+  const shopId = useDefaultShopId();
+  const branchId = useDefaultBranchId();
+  const setBranch = useShopStore((s) => s.setBranch);
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [tendered, setTendered] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  // Customer selection
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
+  const [quickName, setQuickName] = useState('');
+  const [quickPhone, setQuickPhone] = useState('');
+
+  // Branches list for direct branch switching in POS
+  const { data: branches } = useQuery({
+    queryKey: ['branches-pos', shopId],
+    queryFn: async () => {
+      const res = await api.get<{ data: Branch[] }>('/branches', {
+        params: { shopId },
+      });
+      return res.data.data;
+    },
+    enabled: Boolean(shopId),
+  });
+
+  // Customers list for customer search by phone / name
+  const { data: customers } = useQuery({
+    queryKey: ['customers-pos', shopId],
+    queryFn: async () => {
+      const res = await api.get<{ data: PageResponse<Customer> }>('/customers', {
+        params: { shopId, page: 0, size: 200 },
+      });
+      return res.data.data.content;
+    },
+    enabled: Boolean(shopId),
+  });
+
+  const quickAddCustomer = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<{ data: Customer }>('/customers', {
+        shopId,
+        name: quickName.trim(),
+        phone: quickPhone.trim() || undefined,
+      });
+      return res.data.data;
+    },
+    onSuccess: (newCust) => {
+      queryClient.invalidateQueries({ queryKey: ['customers-pos'] });
+      setSelectedCustomer(newCust);
+      setQuickCustomerOpen(false);
+      setQuickName('');
+      setQuickPhone('');
+    },
+    onError: (err) => setError(extractErrorMessage(err)),
+  });
 
   const { data: results, isLoading } = useQuery({
     queryKey: ['pos-search', branchId, query],
@@ -105,6 +162,7 @@ export default function PosPage() {
       const res = await api.post<{ data: Sale }>('/sales', {
         shopId,
         branchId,
+        customerId: selectedCustomer ? selectedCustomer.id : undefined,
         discountAmount: 0,
         paymentStatus: 'PAID',
         paymentMethod: 'CASH',
@@ -119,20 +177,46 @@ export default function PosPage() {
       return res.data.data;
     },
     onSuccess: (sale) => {
-      setMessage(`Sale completed: ${sale.invoiceNumber}. Change: ${change.toFixed(2)}`);
+      setMessage(`Sale completed: ${sale.invoiceNumber}. Change: ${change.toFixed(2)}${selectedCustomer ? ` (Customer: ${selectedCustomer.name})` : ''}`);
       setCart([]);
       setTendered('');
+      setSelectedCustomer(null);
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['pos-search'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
     },
     onError: (err) => setError(extractErrorMessage(err)),
   });
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ mb: 2 }}>
-        Point of Sale
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h5">Point of Sale</Typography>
+          {(branches ?? []).length > 0 && (
+            <TextField
+              select
+              size="small"
+              label="Selling Branch"
+              value={branchId ?? ''}
+              onChange={(e) => setBranch(e.target.value || null)}
+              sx={{ minWidth: 200 }}
+            >
+              {branches?.map((b) => (
+                <MenuItem key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+        </Box>
+      </Box>
+      {!branchId && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          No branch is selected. Sales are recorded against a branch — create one under{' '}
+          <strong>Administration → Branches</strong> and select it from the top bar to start selling.
+        </Alert>
+      )}
       {message && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setMessage('')}>
           {message}
@@ -214,6 +298,61 @@ export default function PosPage() {
 
         <Grid item xs={12} md={4}>
           <Card sx={{ p: 2, height: 'calc(100vh - 160px)', display: 'flex', flexDirection: 'column' }}>
+            {/* Customer Search & Selection */}
+            <Box sx={{ mb: 1.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1.5, bgcolor: 'action.hover' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', color: 'text.secondary' }}>
+                  Customer
+                </Typography>
+                <Button size="small" sx={{ fontSize: 11, py: 0, minWidth: 0 }} onClick={() => setQuickCustomerOpen(true)}>
+                  + New Customer
+                </Button>
+              </Box>
+              {selectedCustomer ? (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'background.paper', p: 1, borderRadius: 1, border: '1px solid', borderColor: 'primary.light' }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedCustomer.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {selectedCustomer.phone ? `Phone: ${selectedCustomer.phone}` : 'No phone number'}
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" onClick={() => setSelectedCustomer(null)} title="Clear customer">
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ) : (
+                <Autocomplete
+                  size="small"
+                  options={customers ?? []}
+                  getOptionLabel={(option) => `${option.name} ${option.phone ? `(${option.phone})` : ''}`}
+                  filterOptions={(options, { inputValue }) => {
+                    const term = inputValue.toLowerCase().trim();
+                    return options.filter((c) =>
+                      c.name.toLowerCase().includes(term) ||
+                      (c.phone && c.phone.includes(term)) ||
+                      (c.email && c.email.toLowerCase().includes(term))
+                    );
+                  }}
+                  value={null}
+                  onChange={(_, val) => setSelectedCustomer(val)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder="Search by phone or name..."
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonSearchIcon fontSize="small" color="action" />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+              )}
+            </Box>
+
             <Typography variant="h6" sx={{ mb: 1 }}>
               Cart
             </Typography>
@@ -287,6 +426,40 @@ export default function PosPage() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Quick Add Customer Dialog */}
+      <Dialog open={quickCustomerOpen} onClose={() => setQuickCustomerOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Quick Add Customer</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            required
+            fullWidth
+            margin="dense"
+            label="Customer Name"
+            value={quickName}
+            onChange={(e) => setQuickName(e.target.value)}
+          />
+          <TextField
+            fullWidth
+            margin="dense"
+            label="Phone Number"
+            placeholder="e.g. 98XXXXXXXX"
+            value={quickPhone}
+            onChange={(e) => setQuickPhone(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQuickCustomerOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!quickName.trim() || quickAddCustomer.isPending}
+            onClick={() => quickAddCustomer.mutate()}
+          >
+            Add & Select
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

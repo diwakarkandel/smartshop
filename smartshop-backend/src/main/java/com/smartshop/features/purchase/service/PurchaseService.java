@@ -114,6 +114,8 @@ public class PurchaseService {
             }
             BigDecimal qty = itemReq.getQuantity();
             BigDecimal unitCost = itemReq.getUnitCost().setScale(2, RoundingMode.HALF_UP);
+            BigDecimal extraCost = itemReq.getExtraCost() == null
+                    ? BigDecimal.ZERO : itemReq.getExtraCost().setScale(2, RoundingMode.HALF_UP);
             BigDecimal lineGross = qty.multiply(unitCost).setScale(2, RoundingMode.HALF_UP);
             BigDecimal itemDiscount = itemReq.getDiscountAmount() == null
                     ? BigDecimal.ZERO : itemReq.getDiscountAmount().setScale(2, RoundingMode.HALF_UP);
@@ -136,6 +138,7 @@ public class PurchaseService {
             item.setProduct(product);
             item.setQuantity(qty);
             item.setUnitCost(unitCost);
+            item.setExtraCost(extraCost);
             item.setDiscountAmount(itemDiscount);
             item.setVatRate(vatRate);
             item.setVatAmount(vatAmount);
@@ -156,8 +159,9 @@ public class PurchaseService {
         for (PurchaseItem item : items) {
             item.setPurchase(saved);
             purchaseItemRepository.save(item);
+            BigDecimal landedCost = item.getUnitCost().add(item.getExtraCost());
             inventoryService.adjustStock(branch.getId(), item.getProduct().getId(), item.getQuantity(),
-                    MovementType.PURCHASE_IN, "PURCHASE", saved.getId(), null, item.getUnitCost());
+                    MovementType.PURCHASE_IN, "PURCHASE", saved.getId(), null, landedCost);
         }
 
         auditService.log("CREATE", "Purchase", saved.getId().toString(), null,
@@ -211,7 +215,7 @@ public class PurchaseService {
         PaymentStatus oldStatus = purchase.getPaymentStatus();
         purchase.setPaymentStatus(request.getPaymentStatus());
         purchaseRepository.save(purchase);
-        auditService.log("UPDATE", "Purchase", purchase.getId().toString(),
+        auditService.log("PAYMENT_STATUS_CHANGE", "Purchase", purchase.getId().toString(),
                 oldStatus == null ? null : oldStatus.name(), request.getPaymentStatus().name());
         return toResponse(purchase);
     }
@@ -231,6 +235,8 @@ public class PurchaseService {
                         .sku(item.getProduct().getSku())
                         .quantity(item.getQuantity())
                         .unitCost(item.getUnitCost())
+                        .extraCost(item.getExtraCost())
+                        .effectiveCost(item.getUnitCost().add(item.getExtraCost()))
                         .discountAmount(item.getDiscountAmount())
                         .vatRate(item.getVatRate())
                         .vatAmount(item.getVatAmount())

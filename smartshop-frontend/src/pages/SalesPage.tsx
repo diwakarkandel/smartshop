@@ -1,36 +1,119 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box, Card, Typography, Table, TableHead, TableRow, TableCell, TableBody,
-  Dialog, DialogTitle, DialogContent, Chip, Pagination, CircularProgress, Divider,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Chip, Pagination, CircularProgress,
+  Divider, TextField, MenuItem, Alert, InputAdornment,
 } from '@mui/material';
-import api from '../lib/api';
+import SearchIcon from '@mui/icons-material/Search';
+import api, { downloadDocument, extractErrorMessage } from '../lib/api';
 import { groupTaxByRate } from '../lib/tax';
 import TaxTotals from '../components/billing/TaxTotals';
-import { defaultShopId } from '../stores/shopStore';
-import type { PageResponse, Sale } from '../types';
+import SalesPaymentsDialog from '../components/billing/SalesPaymentsDialog';
+import Can from '../components/guards/Can';
+import { ROLES } from '../lib/routeRoles';
+import { useDefaultShopId } from '../stores/shopStore';
+import { PAYMENT_STATUSES } from '../types';
+import type { Branch, PageResponse, PaymentStatus, Sale } from '../types';
 
 export default function SalesPage() {
-  const shopId = defaultShopId();
+  const shopId = useDefaultShopId();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Sale | null>(null);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [filterBranchId, setFilterBranchId] = useState('');
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['sales', shopId, page],
+  const { data: branches } = useQuery({
+    queryKey: ['branches-sales', shopId],
     queryFn: async () => {
-      const res = await api.get<{ data: PageResponse<Sale> }>('/sales', {
-        params: { shopId, page, size: 10 },
+      const res = await api.get<{ data: Branch[] }>('/branches', {
+        params: { shopId },
       });
       return res.data.data;
     },
     enabled: Boolean(shopId),
   });
 
+  const { data, isLoading } = useQuery({
+    queryKey: ['sales', shopId, filterBranchId, search, page],
+    queryFn: async () => {
+      const res = await api.get<{ data: PageResponse<Sale> }>('/sales', {
+        params: {
+          shopId,
+          branchId: filterBranchId || undefined,
+          search: search.trim() || undefined,
+          page,
+          size: 10,
+        },
+      });
+      return res.data.data;
+    },
+    enabled: Boolean(shopId),
+  });
+
+  const setPaymentStatus = useMutation({
+    mutationFn: ({ id, paymentStatus }: { id: string; paymentStatus: PaymentStatus }) =>
+      api.put(`/sales/${id}/payment-status`, { paymentStatus }),
+    onSuccess: (_res, vars) => {
+      setSelected((s) => (s ? { ...s, paymentStatus: vars.paymentStatus } : s));
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+    },
+    onError: (err) => setError(extractErrorMessage(err)),
+  });
+
   return (
     <Box>
-      <Typography variant="h5" sx={{ mb: 2 }}>
-        Sales
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+        <Typography variant="h5">Sales</Typography>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            placeholder="Search by invoice, customer, phone..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" color="action" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ minWidth: 280 }}
+          />
+          {(branches ?? []).length > 0 && (
+            <TextField
+              select
+              size="small"
+              label="Filter by Branch"
+              value={filterBranchId}
+              onChange={(e) => {
+                setFilterBranchId(e.target.value);
+                setPage(0);
+              }}
+              sx={{ minWidth: 180 }}
+            >
+              <MenuItem value="">All Branches</MenuItem>
+              {branches?.map((b) => (
+                <MenuItem key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+        </Box>
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
       <Card>
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -55,7 +138,18 @@ export default function SalesPage() {
                   <TableCell>{s.invoiceNumber}</TableCell>
                   <TableCell>{s.billDate}</TableCell>
                   <TableCell>{s.branchName}</TableCell>
-                  <TableCell>{s.customerName ?? '-'}</TableCell>
+                  <TableCell>
+                    {s.customerName ? (
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.customerName}</Typography>
+                        {s.customerPhone && (
+                          <Typography variant="caption" color="text.secondary">📞 {s.customerPhone}</Typography>
+                        )}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">Walk-in</Typography>
+                    )}
+                  </TableCell>
                   <TableCell align="right">{s.totalAmount.toFixed(2)}</TableCell>
                   <TableCell>{s.paymentMethod ?? '-'}</TableCell>
                   <TableCell>
@@ -90,12 +184,40 @@ export default function SalesPage() {
                 <Typography variant="body2">{selected.branchName}</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Customer</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {selected.customerName
+                    ? `${selected.customerName}${selected.customerPhone ? ` (📞 ${selected.customerPhone})` : ''}`
+                    : 'Walk-in Customer'}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2">Payment</Typography>
                 <Typography variant="body2">
                   {selected.paymentMethod ?? '-'}
                   {selected.paymentStatus === 'PAID' ? ' (PAID)' : ` (${selected.paymentStatus})`}
                 </Typography>
               </Box>
+              <Can roles={[ROLES.SHOP_ADMIN, ROLES.ACCOUNTANT]}>
+                <TextField
+                  select
+                  size="small"
+                  label="Set payment status"
+                  fullWidth
+                  margin="dense"
+                  value={selected.paymentStatus}
+                  disabled={setPaymentStatus.isPending}
+                  onChange={(e) =>
+                    setPaymentStatus.mutate({ id: selected.id, paymentStatus: e.target.value as PaymentStatus })
+                  }
+                >
+                  {PAYMENT_STATUSES.map((s) => (
+                    <MenuItem key={s} value={s}>
+                      {s}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Can>
               <Divider sx={{ my: 1.5 }} />
               {(selected.items ?? []).length > 0 && (
                 <>
@@ -160,7 +282,30 @@ export default function SalesPage() {
             </>
           )}
         </DialogContent>
+        <DialogActions>
+          <Button 
+            variant="outlined" 
+            onClick={() => setPaymentsOpen(true)}
+            sx={{ mr: 'auto' }}
+          >
+            Payments
+          </Button>
+          <Button
+            variant="outlined"
+            disabled={!selected}
+            onClick={() => selected && downloadDocument(`/sales/${selected.id}/invoice/pdf`, 'sale-invoice.pdf')}
+          >
+            PDF Invoice
+          </Button>
+          <Button onClick={() => setSelected(null)}>Close</Button>
+        </DialogActions>
       </Dialog>
+
+      <SalesPaymentsDialog
+        open={paymentsOpen}
+        onClose={() => setPaymentsOpen(false)}
+        sale={selected}
+      />
     </Box>
   );
 }

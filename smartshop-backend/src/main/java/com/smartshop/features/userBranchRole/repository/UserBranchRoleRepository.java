@@ -39,4 +39,28 @@ public interface UserBranchRoleRepository extends JpaRepository<UserBranchRole, 
               AND ubr.branch.id = :branchId
             """)
     List<UserBranchRole> findActiveByUserAndBranch(@Param("userId") UUID userId, @Param("branchId") UUID branchId);
+
+    /**
+     * Returns all distinct user IDs that have an active role assignment in a given shop
+     * (either directly on the shop or via a branch that belongs to the shop).
+     * Used by UserService to scope user listings for SHOP_ADMIN callers.
+     */
+    @Query("""
+            SELECT DISTINCT ubr.user.id FROM UserBranchRole ubr
+            WHERE ubr.isActive = true
+              AND (ubr.shop.id = :shopId OR ubr.branch.shop.id = :shopId)
+            """)
+    List<UUID> findActiveUserIdsByShopId(@Param("shopId") UUID shopId);
+
+    /**
+     * Distinct email addresses of all active staff of a shop (directly on the shop
+     * or via a branch of it). Used to notify the team of customer-record changes.
+     */
+    @Query("""
+            SELECT DISTINCT ubr.user.email FROM UserBranchRole ubr
+            WHERE ubr.isActive = true
+              AND ubr.user.email IS NOT NULL
+              AND (ubr.shop.id = :shopId OR ubr.branch.shop.id = :shopId)
+            """)
+    List<String> findActiveStaffEmailsByShopId(@Param("shopId") UUID shopId);
 }

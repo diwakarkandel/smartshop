@@ -53,6 +53,34 @@ public class BranchService {
         return toResponse(saved);
     }
 
+    /**
+     * Creates a default active "Main Branch" for a freshly created shop so it is
+     * immediately usable for sales, purchases and inventory. Intended for internal
+     * use by the shop creation / registration-approval flows, so it performs no
+     * caller authorization check. Idempotent: does nothing if the shop already
+     * has a main branch.
+     */
+    @Transactional
+    public void createDefaultMainBranch(Shop shop) {
+        if (branchRepository.existsByShopIdAndIsMainBranchTrue(shop.getId())) {
+            return;
+        }
+        String code = "MAIN";
+        if (branchRepository.existsByShopIdAndCode(shop.getId(), code)) {
+            code = "MAIN-" + shop.getId().toString().substring(0, 4).toUpperCase();
+        }
+        Branch branch = new Branch();
+        branch.setShop(shop);
+        branch.setName("Main Branch");
+        branch.setCode(code);
+        branch.setStatus(BranchStatus.ACTIVE);
+        branch.setIsMainBranch(true);
+        Branch saved = branchRepository.save(branch);
+        auditService.log("CREATE", "Branch", saved.getId().toString(), null,
+                saved.getName() + " (" + saved.getCode() + ") [auto]");
+        log.info("Default main branch created for shop {}", shop.getId());
+    }
+
     @Transactional(readOnly = true)
     public List<BranchResponse> listBranches(UUID shopId) {
         branchScopeGuard.requireShopAccess(SecurityUtils.currentUserId(), shopId);

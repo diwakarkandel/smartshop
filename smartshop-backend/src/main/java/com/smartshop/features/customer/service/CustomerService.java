@@ -6,8 +6,10 @@ import com.smartshop.features.customer.entity.Customer;
 import com.smartshop.features.customer.repository.CustomerRepository;
 import com.smartshop.features.shop.entity.Shop;
 import com.smartshop.features.shop.repository.ShopRepository;
+import com.smartshop.features.userBranchRole.repository.UserBranchRoleRepository;
 import com.smartshop.security.BranchScopeGuard;
 import com.smartshop.security.SecurityUtils;
+import com.smartshop.shared.email.EmailService;
 import com.smartshop.shared.exception.ResourceNotFoundException;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,8 @@ public class CustomerService {
     private final CustomerRepository customerRepository;
     private final ShopRepository shopRepository;
     private final BranchScopeGuard branchScopeGuard;
+    private final UserBranchRoleRepository userBranchRoleRepository;
+    private final EmailService emailService;
 
     @Transactional
     public CustomerResponse create(CustomerRequest request) {
@@ -41,6 +45,7 @@ public class CustomerService {
         customer.setShop(shop);
         Customer saved = customerRepository.save(customer);
         log.info("Customer {} created with id: {}", saved.getName(), saved.getId());
+        notifyStaff(shop, saved, "created");
         return toResponse(saved);
     }
 
@@ -52,7 +57,26 @@ public class CustomerService {
         applyRequest(customer, request);
         Customer saved = customerRepository.save(customer);
         log.info("Customer {} updated successfully", id);
+        notifyStaff(saved.getShop(), saved, "updated");
         return toResponse(saved);
+    }
+
+    /**
+     * Emails the shop's staff (BCC) that a customer was created/updated. Best effort:
+     * any failure is swallowed so it never breaks the customer write.
+     */
+    private void notifyStaff(Shop shop, Customer customer, String action) {
+        try {
+            List<String> staffEmails = userBranchRoleRepository.findActiveStaffEmailsByShopId(shop.getId());
+            if (staffEmails.isEmpty()) {
+                return;
+            }
+            String actor = SecurityUtils.currentUser().getUsername();
+            emailService.sendCustomerChangeNotification(staffEmails, shop.getName(),
+                    customer.getName(), action, actor);
+        } catch (Exception e) {
+            log.warn("Customer change notification skipped for shop {}: {}", shop.getId(), e.getMessage());
+        }
     }
 
     @Transactional

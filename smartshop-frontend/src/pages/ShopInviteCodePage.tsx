@@ -8,12 +8,12 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useState } from 'react';
 import api, { extractErrorMessage } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
-import { defaultShopId } from '../stores/shopStore';
+import { useDefaultShopId } from '../stores/shopStore';
 import type { ApiResponse, InviteCode } from '../types';
 
 export default function ShopInviteCodePage() {
   const hasRole = useAuthStore((s) => s.hasRole);
-  const shopId = defaultShopId();
+  const shopId = useDefaultShopId();
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -98,7 +98,7 @@ export default function ShopInviteCodePage() {
             >
               {inviteCode?.code ?? '-'}
             </Typography>
-            {!inviteCode?.isActive && (
+            {inviteCode && !inviteCode.active && (
               <Typography variant="caption" color="error">
                 This code is inactive
               </Typography>

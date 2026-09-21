@@ -1,0 +1,69 @@
+services:
+  - type: web
+    name: smartshop-backend
+    runtime: java
+    plan: free
+    buildCommand: "./gradlew bootJar"
+    startCommand: "java -Dserver.port=$PORT -jar build/libs/smartshop-backend-*.jar"
+    rootDir: smartshop-backend
+    envVars:
+      - key: SERVER_PORT
+        value: 10000
+      - key: DB_URL
+        value: jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?prepareThreshold=0
+      - key: DB_USERNAME
+        value: postgres.ggdcwybhhxcqgletbitu
+      - key: DB_PASSWORD
+        value: EventConnect@2026
+      - key: APP_JWT_SECRET
+        value: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970337336763979244226452948404D635166546A576E5A7234753778214125442A47
+      - key: APP_JWT_ACCESS_TOKEN_EXPIRATION
+        value: 900000
+      - key: APP_JWT_REFRESH_TOKEN_EXPIRATION
+        value: 604800000
+      - key: APP_CORS_ALLOWED_ORIGINS
+        value: https://smartshop-frontend.vercel.app
+      - key: APP_COOKIE_SECURE
+        value: true
+      - key: SUPABASE_STORAGE_URL
+        value: https://ggdcwybhhxcqgletbitu.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        value: sb_secret_DQgFzlh636cLfF9So_dqow_nY9326ql
+      - key: SUPABASE_PUBLIC_URL_BASE
+        value: https://ggdcwybhhxcqgletbitu.supabase.co/storage/v1/object/public/
+      - key: S3_ENDPOINT
+        value: https://ggdcwybhhxcqgletbitu.storage.supabase.co/storage/v1/s3
+      - key: S3_REGION
+        value: ap-southeast-1
+      - key: S3_ACCESS_KEY
+        value: 9e467e122e74dfb3764a98570600eb89
+      - key: S3_SECRET_KEY
+        value: f55fff6691cfa240003a3faedbc549fb85d0528703be7bfbb69963fecc20364e
+      - key: S3_BUCKET_NAME
+        value: smartshop
+      - key: ESEWA_ENABLED
+        value: false
+      - key: KHALTI_ENABLED
+        value: false
+      - key: BOOTSTRAP_ENABLED
+        value: true
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        value: admin@smartshop.local
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        value: Admin@12345
+      - key: BOOTSTRAP_ADMIN_FIRST_NAME
+        value: Super
+      - key: BOOTSTRAP_ADMIN_LAST_NAME
+        value: Admin
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: 587
+      - key: MAIL_USERNAME
+        value: eventconnect166@gmail.com
+      - key: MAIL_PASSWORD
+        value: rrbx isao omds gvge
+      - key: MAIL_FROM
+        value: noreply@smartshop.local
+      - key: MAIL_FROM_NAME
+        value: SmartShop Platform

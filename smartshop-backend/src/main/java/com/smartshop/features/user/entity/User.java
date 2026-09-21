@@ -42,6 +42,9 @@ public class User extends BaseEntity {
     @Column(nullable = false, length = 20)
     private UserStatus status = UserStatus.ACTIVE;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = true;
+
     public String getFullName() {
         return firstName + " " + lastName;
     }

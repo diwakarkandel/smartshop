@@ -37,13 +37,13 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping("/tree")
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<List<CategoryResponse>>> tree(@RequestParam UUID shopId) {
         return ResponseEntity.ok(ApiResponse.success(categoryService.tree(shopId)));
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<PageResponse<CategoryResponse>>> list(
             @RequestParam UUID shopId,
             @RequestParam(defaultValue = AppConstants.DEFAULT_PAGE) int page,
@@ -57,7 +57,7 @@ public class CategoryController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','CASHIER','INVENTORY_STAFF','ACCOUNTANT')")
     public ResponseEntity<ApiResponse<CategoryResponse>> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.success(categoryService.get(id)));
     }

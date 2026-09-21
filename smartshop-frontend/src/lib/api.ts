@@ -53,7 +53,7 @@ api.interceptors.response.use(
         return api(original);
       }
       useAuthStore.getState().setSession(null);
-      if (!original.url?.includes('/auth/login')) {
+      if (!original.url?.includes('/auth/')) {
         window.location.href = '/login';
       }
     }
@@ -113,9 +113,36 @@ export async function addTaxRate(taxId: string, payload: TaxRatePayload): Promis
   return res.data.data;
 }
 
+export async function listTaxRates(taxId: string): Promise<TaxRate[]> {
+  const res = await api.get<TaxRate[]>(`/taxes/${taxId}/rates`);
+  return res.data;
+}
+
+/**
+ * Hard delete — `TaxService.delete` calls `taxRepository.delete(tax)`, it does not
+ * soft-deactivate. Prefer toggling `isActive` unless the row is genuinely unused.
+ */
+export async function deleteTax(id: string): Promise<void> {
+  await api.delete(`/taxes/${id}`);
+}
+
 export async function getSale(id: string): Promise<Sale> {
   const res = await api.get<{ data: Sale }>(`/sales/${id}`);
   return res.data.data;
+}
+
+export async function downloadDocument(url: string, fallbackName: string): Promise<void> {
+  const res = await api.get<Blob>(url, { responseType: 'blob' });
+  const disposition = res.headers['content-disposition'] as string | undefined;
+  const match = disposition?.match(/filename="?([^"]+)"?/);
+  const blobUrl = URL.createObjectURL(res.data);
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = match?.[1] ?? fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(blobUrl);
 }
 
 export default api;

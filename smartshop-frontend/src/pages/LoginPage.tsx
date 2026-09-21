@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import api, { extractErrorMessage } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
+import { getDefaultRoute } from '../lib/routeRoles';
 import type { AuthUser } from '../types';
 
 const schema = z.object({
@@ -33,7 +34,7 @@ export default function LoginPage() {
     try {
       const res = await api.post<{ data: AuthUser }>('/auth/login', values);
       setSession(res.data.data);
-      navigate('/dashboard');
+      navigate(getDefaultRoute(res.data.data.roles));
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
@@ -48,13 +49,49 @@ export default function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#1B4332',
+        p: 2,
+        position: 'relative',
+        overflow: 'hidden',
+        background: 'linear-gradient(135deg, #12362A 0%, #1B4332 45%, #2D6A4F 100%)',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          background:
+            'radial-gradient(600px 400px at 15% 20%, rgba(64,145,108,0.45), transparent 60%),' +
+            'radial-gradient(500px 400px at 85% 80%, rgba(232,223,202,0.18), transparent 60%)',
+          pointerEvents: 'none',
+        },
       }}
     >
-      <Card sx={{ width: 400, p: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-          <StorefrontIcon color="primary" />
-          <Typography variant="h5">SmartShop</Typography>
+      <Card
+        sx={{
+          width: 400,
+          maxWidth: '100%',
+          p: 4,
+          position: 'relative',
+          borderRadius: 4,
+          boxShadow: '0 30px 70px rgba(0,0,0,0.35)',
+          animation: 'ss-pop 0.5s cubic-bezier(0.22,1,0.36,1) both',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 3 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 44,
+              height: 44,
+              borderRadius: 2.5,
+              color: '#fff',
+              background: 'linear-gradient(135deg, #1B4332 0%, #40916C 100%)',
+              boxShadow: '0 6px 16px rgba(27,67,50,0.35)',
+            }}
+          >
+            <StorefrontIcon />
+          </Box>
+          <Typography variant="h5" fontWeight={800}>SmartShop</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           Sign in to manage your shop
@@ -83,12 +120,17 @@ export default function LoginPage() {
             error={Boolean(errors.password)}
             helperText={errors.password?.message}
           />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5 }}>
+            <Link to="/forgot-password" style={{ color: '#2D6A4F', fontSize: '0.85rem', textDecoration: 'none' }}>
+              Forgot password?
+            </Link>
+          </Box>
           <Button
             type="submit"
             fullWidth
             variant="contained"
             size="large"
-            sx={{ mt: 3 }}
+            sx={{ mt: 2.5 }}
             disabled={loading}
           >
             {loading ? <CircularProgress size={22} color="inherit" /> : 'Sign in'}

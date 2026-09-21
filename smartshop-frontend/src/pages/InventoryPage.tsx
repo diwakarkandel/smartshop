@@ -5,11 +5,11 @@ import {
   Chip, Pagination, CircularProgress, Switch, FormControlLabel,
 } from '@mui/material';
 import api from '../lib/api';
-import { defaultBranchId } from '../stores/shopStore';
+import { useDefaultBranchId } from '../stores/shopStore';
 import type { InventoryItem, PageResponse } from '../types';
 
 export default function InventoryPage() {
-  const branchId = defaultBranchId();
+  const branchId = useDefaultBranchId();
   const [page, setPage] = useState(0);
   const [lowOnly, setLowOnly] = useState(false);
 

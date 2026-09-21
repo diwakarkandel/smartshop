@@ -1,25 +1,46 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Box, Card, Typography, Table, TableHead, TableRow, TableCell, TableBody,
   Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  IconButton, Pagination, CircularProgress, Alert,
+  IconButton, Pagination, CircularProgress, Alert, MenuItem, Stack,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import api, { extractErrorMessage } from '../lib/api';
-import { defaultShopId } from '../stores/shopStore';
-import type { PageResponse, Supplier } from '../types';
+import api from '../lib/api';
+import { useCrudDialog } from '../lib/useCrudDialog';
+import { useDefaultShopId } from '../stores/shopStore';
+import type { PageResponse, Status, Supplier } from '../types';
 
 const FIELDS = ['name', 'companyName', 'phone', 'email', 'address', 'panNumber'] as const;
+const STATUSES: Status[] = ['ACTIVE', 'INACTIVE'];
+type SupplierForm = Record<string, string>;
 
 export default function SuppliersPage() {
-  const shopId = defaultShopId();
-  const queryClient = useQueryClient();
+  const shopId = useDefaultShopId();
   const [page, setPage] = useState(0);
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState('');
-  const [form, setForm] = useState<Record<string, string>>({ name: '' });
+
+  const { open, editing, form, setForm, error, setError, openNew, openEdit, close, save, remove } =
+    useCrudDialog<Supplier, SupplierForm>({
+      path: '/suppliers',
+      invalidateKey: 'suppliers',
+      emptyForm: { name: '', status: 'ACTIVE' },
+      toForm: (s) => ({
+        name: s.name,
+        companyName: s.companyName ?? '',
+        phone: s.phone ?? '',
+        email: s.email ?? '',
+        address: s.address ?? '',
+        panNumber: s.panNumber ?? '',
+        status: s.status,
+      }),
+      toPayload: (f, current) => {
+        const payload: Record<string, unknown> = { shopId };
+        FIELDS.forEach((k) => { payload[k] = f[k] || null; });
+        if (current) payload.status = f.status;
+        return payload;
+      },
+    });
 
   const { data, isLoading } = useQuery({
     queryKey: ['suppliers', shopId, page],
@@ -32,33 +53,11 @@ export default function SuppliersPage() {
     enabled: Boolean(shopId),
   });
 
-  const create = useMutation({
-    mutationFn: async () => {
-      const payload: Record<string, unknown> = { shopId };
-      FIELDS.forEach((f) => {
-        payload[f] = form[f] || null;
-      });
-      return api.post('/suppliers', payload);
-    },
-    onSuccess: () => {
-      setOpen(false);
-      setForm({ name: '' });
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-    },
-    onError: (err) => setError(extractErrorMessage(err)),
-  });
-
-  const deactivate = useMutation({
-    mutationFn: (id: string) => api.delete(`/suppliers/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
-    onError: (err) => setError(extractErrorMessage(err)),
-  });
-
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="h5">Suppliers</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
           New Supplier
         </Button>
       </Box>
@@ -81,7 +80,7 @@ export default function SuppliersPage() {
                 <TableCell>Phone</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell></TableCell>
+                <TableCell align="right"></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -94,10 +93,18 @@ export default function SuppliersPage() {
                   <TableCell>
                     <Chip size="small" label={s.status} color={s.status === 'ACTIVE' ? 'success' : 'default'} />
                   </TableCell>
-                  <TableCell>
-                    <IconButton size="small" onClick={() => deactivate.mutate(s.id)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                  <TableCell align="right">
+                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Button size="small" onClick={() => openEdit(s)}>
+                        Edit
+                      </Button>
+                      <IconButton size="small" onClick={() => {
+                        if (!window.confirm(`Deactivate supplier "${s.name}"?`)) return;
+                        remove.mutate(s.id);
+                      }}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}
@@ -114,23 +121,39 @@ export default function SuppliersPage() {
         <Pagination count={data?.totalPages ?? 1} page={page + 1} onChange={(_, p) => setPage(p - 1)} />
       </Box>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>New Supplier</DialogTitle>
+      <Dialog open={open} onClose={close} fullWidth maxWidth="sm">
+        <DialogTitle>{editing ? `Edit Supplier - ${editing.name}` : 'New Supplier'}</DialogTitle>
         <DialogContent>
           {FIELDS.map((f) => (
             <TextField
               key={f}
-              label={f.replace(/([A-Z])/g, ' $1')}
+              label={f.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())}
               fullWidth
               margin="dense"
               value={form[f] ?? ''}
               onChange={(e) => setForm({ ...form, [f]: e.target.value })}
             />
           ))}
+          {editing && (
+            <TextField
+              select
+              label="Status"
+              fullWidth
+              margin="dense"
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+            >
+              {STATUSES.map((s) => (
+                <MenuItem key={s} value={s}>
+                  {s}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" disabled={!form.name || create.isPending} onClick={() => create.mutate()}>
+          <Button onClick={close}>Cancel</Button>
+          <Button variant="contained" disabled={!form.name || save.isPending} onClick={() => save.mutate()}>
             Save
           </Button>
         </DialogActions>

@@ -40,8 +40,14 @@ public class Expense extends BaseEntity {
     @Column(nullable = false, length = 200)
     private String title;
 
+    /** Legacy free-text category kept for backward compatibility. */
     @Column(length = 100)
     private String category;
+
+    /** Structured category from the expense_categories master list. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private ExpenseCategory expenseCategory;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;

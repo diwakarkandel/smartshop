@@ -4,6 +4,8 @@ import com.smartshop.features.audit.service.AuditService;
 import com.smartshop.features.settings.entity.Setting;
 import com.smartshop.features.settings.repository.SettingRepository;
 import com.smartshop.features.shop.entity.Shop;
+import com.smartshop.features.shop.repository.ShopRepository;
+import com.smartshop.features.user.repository.UserRepository;
 import com.smartshop.shared.constant.AppConstants;
 import com.smartshop.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,8 @@ import java.util.UUID;
 public class SettingsService {
 
     private final SettingRepository settingRepository;
+    private final ShopRepository shopRepository;
+    private final UserRepository userRepository;
     private final AuditService auditService;
 
     @Transactional(readOnly = true)
@@ -42,6 +46,9 @@ public class SettingsService {
             vat.setSettingKey(AppConstants.SETTING_VAT_RATE);
             vat.setSettingValue(AppConstants.DEFAULT_VAT_RATE);
             vat.setDescription("VAT rate percentage applied to sales and purchases");
+            if (updatedBy != null) {
+                userRepository.findById(updatedBy).ifPresent(vat::setUpdatedBy);
+            }
             settingRepository.save(vat);
         }
     }
@@ -50,12 +57,24 @@ public class SettingsService {
     public Setting updateSetting(UUID shopId, String key, String value, UUID updatedBy) {
         log.info("Updating setting {} for shop {}", key, shopId);
         Setting setting = settingRepository.findByShopIdAndSettingKey(shopId, key)
-                .orElseThrow(() -> new ResourceNotFoundException("Setting", key));
+                .orElseGet(() -> {
+                    Shop shop = shopRepository.findById(shopId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Shop", shopId));
+                    Setting newSetting = new Setting();
+                    newSetting.setShop(shop);
+                    newSetting.setSettingKey(key);
+                    newSetting.setDescription(key.equals(AppConstants.SETTING_VAT_RATE)
+                            ? "VAT rate percentage applied to sales and purchases" : key);
+                    return newSetting;
+                });
         String oldValue = setting.getSettingValue();
         setting.setSettingValue(value);
+        if (updatedBy != null) {
+            userRepository.findById(updatedBy).ifPresent(setting::setUpdatedBy);
+        }
         Setting saved = settingRepository.save(setting);
 
-        auditService.log("UPDATE", "Settings", saved.getId().toString(),
+        auditService.log(oldValue == null ? "CREATE" : "UPDATE", "Settings", saved.getId().toString(),
                 key + "=" + oldValue, key + "=" + value);
         log.info("Setting {} updated successfully for shop {}", key, shopId);
         return saved;
@@ -67,8 +86,13 @@ public class SettingsService {
                 .orElseThrow(() -> new ResourceNotFoundException("Setting", key));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<Setting> listSettings(UUID shopId) {
-        return settingRepository.findByShopIdOrderBySettingKeyAsc(shopId);
+        List<Setting> settings = settingRepository.findByShopIdOrderBySettingKeyAsc(shopId);
+        if (settings.isEmpty()) {
+            shopRepository.findById(shopId).ifPresent(shop -> ensureDefaultSettings(shop, null));
+            return settingRepository.findByShopIdOrderBySettingKeyAsc(shopId);
+        }
+        return settings;
     }
 }

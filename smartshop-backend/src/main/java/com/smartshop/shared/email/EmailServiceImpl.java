@@ -8,6 +8,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -99,6 +101,76 @@ public class EmailServiceImpl implements EmailService {
                 """
                 .formatted(escape(userName));
         sendHtmlEmail(toEmail, subject, buildHtml("Welcome to SmartShop", body, "Get Started Now"));
+    }
+
+    @Override
+    public void sendPasswordResetEmail(String toEmail, String userName, String resetToken) {
+        String subject = "Reset your SmartShop password";
+        String body = """
+                <p>Dear %s,</p>
+                <p>We received a request to reset the password for your SmartShop account.</p>
+                <p>Please use the following password reset token to choose a new password:</p>
+                <div class="highlight-box" style="font-size: 18px; font-weight: bold; letter-spacing: 2px; text-align: center;">
+                    %s
+                </div>
+                <p>This token will expire in 2 hours. If you did not request a password reset, you can safely ignore this email.</p>
+                """
+                .formatted(escape(userName), escape(resetToken));
+        sendHtmlEmail(toEmail, subject, buildHtml("Password Reset Request", body, "Reset Password"));
+    }
+
+    @Override
+    public void sendEmailVerificationEmail(String toEmail, String userName, String verificationToken) {
+        String subject = "Verify your email address for SmartShop";
+        String body = """
+                <p>Dear %s,</p>
+                <p>Thank you for creating an account with SmartShop!</p>
+                <p>Please verify your email address using the following verification token:</p>
+                <div class="highlight-box" style="font-size: 18px; font-weight: bold; letter-spacing: 2px; text-align: center;">
+                    %s
+                </div>
+                <p>This token will expire in 24 hours.</p>
+                """
+                .formatted(escape(userName), escape(verificationToken));
+        sendHtmlEmail(toEmail, subject, buildHtml("Verify Your Email", body, "Verify Email"));
+    }
+
+    @Override
+    public void sendCustomerChangeNotification(List<String> recipientEmails, String shopName,
+                                               String customerName, String action, String actorName) {
+        if (recipientEmails == null || recipientEmails.isEmpty()) {
+            return;
+        }
+        String subject = "Customer " + action + ": " + customerName;
+        String body = """
+                <p>Hello team,</p>
+                <p>A customer record was <strong>%s</strong> in <strong>%s</strong>.</p>
+                <div class="highlight-box">
+                    <strong>Customer:</strong> %s<br/>
+                    <strong>Action:</strong> %s<br/>
+                    <strong>By:</strong> %s
+                </div>
+                <p>This is an automated notification sent to the shop's staff.</p>
+                """
+                .formatted(escape(action), escape(shopName), escape(customerName),
+                        escape(action), escape(actorName));
+        sendBccEmail(recipientEmails, subject, buildHtml("Customer Notification", body, "Open SmartShop"));
+    }
+
+    /** Sends one HTML message with the recipients as BCC (keeps staff addresses private). */
+    private void sendBccEmail(List<String> recipients, String subject, String htmlContent) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromAddress, fromName);
+            helper.setTo(fromAddress);
+            helper.setBcc(recipients.toArray(new String[0]));
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.warn("Failed to send BCC notification to {} recipient(s): {}", recipients.size(), e.getMessage());
+        }
     }
 
     private void sendHtmlEmail(String toEmail, String subject, String htmlContent) {

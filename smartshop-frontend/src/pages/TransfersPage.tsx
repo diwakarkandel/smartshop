@@ -10,8 +10,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api, { extractErrorMessage } from '../lib/api';
-import { useAuthStore } from '../stores/authStore';
-import { defaultShopId, defaultBranchId } from '../stores/shopStore';
+import { useDefaultShopId, useDefaultBranchId } from '../stores/shopStore';
 import type { Branch, PageResponse, Product } from '../types';
 
 interface TransferRow {
@@ -28,10 +27,9 @@ interface Line {
 }
 
 export default function TransfersPage() {
-  const shopId = defaultShopId();
-  const branchId = defaultBranchId();
+  const shopId = useDefaultShopId();
+  const branchId = useDefaultBranchId();
   const queryClient = useQueryClient();
-  const user = useAuthStore((s) => s.user);
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
@@ -39,9 +37,18 @@ export default function TransfersPage() {
   const [toBranchId, setToBranchId] = useState('');
   const [lines, setLines] = useState<Line[]>([{ productId: '', quantity: '1' }]);
 
-  const branches = user?.branchRoles
-    .filter((b) => b.branchId)
-    .map((b) => ({ id: b.branchId, name: b.branchName }) as unknown as Branch) ?? [];
+  // Fetch the shop's real branches (GET /branches returns a plain array). Using
+  // the API rather than the user's role grants means shop-admins — whose grant is
+  // shop-level with no branchId — still see every branch they can transfer between.
+  const { data: branchData } = useQuery({
+    queryKey: ['branches', shopId],
+    queryFn: async () => {
+      const res = await api.get<{ data: Branch[] }>('/branches', { params: { shopId } });
+      return res.data.data;
+    },
+    enabled: Boolean(shopId),
+  });
+  const branches = (branchData ?? []).map((b) => ({ id: b.id, name: b.name }));
 
   const { data, isLoading } = useQuery({
     queryKey: ['transfers', shopId, page],
@@ -105,6 +112,12 @@ export default function TransfersPage() {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
+        </Alert>
+      )}
+      {branches.length < 2 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Stock transfers move inventory between two branches, so you need at least two.
+          Add branches under <strong>Administration → Branches</strong>.
         </Alert>
       )}
       <Card>

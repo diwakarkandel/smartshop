@@ -29,12 +29,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
         if (token != null && jwtTokenProvider.validateToken(token)
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UUID userId = jwtTokenProvider.getUserIdFromToken(token);
-            UserPrincipal principal = userDetailsService.loadUserById(userId);
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            try {
+                UUID userId = jwtTokenProvider.getUserIdFromToken(token);
+                UserPrincipal principal = userDetailsService.loadUserById(userId);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (Exception e) {
+                // Token is valid mathematically, but user may have been deleted or invalid.
+                // We just don't set authentication and let the request proceed (which may fail later if auth is required).
+            }
         }
         filterChain.doFilter(request, response);
     }

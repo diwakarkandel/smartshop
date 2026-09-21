@@ -29,7 +29,7 @@ public class InventoryController {
     private final InventoryService inventoryService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT','CASHIER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT','CASHIER')")
     public ResponseEntity<ApiResponse<PageResponse<InventoryResponse>>> list(
             @RequestParam UUID branchId,
             @RequestParam(defaultValue = AppConstants.DEFAULT_PAGE) int page,
@@ -45,7 +45,7 @@ public class InventoryController {
     }
 
     @GetMapping("/product/{productId}")
-    @PreAuthorize("hasAnyRole('SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT','CASHIER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','SHOP_ADMIN','MANAGER','INVENTORY_STAFF','ACCOUNTANT','CASHIER')")
     public ResponseEntity<ApiResponse<InventoryResponse>> get(@RequestParam UUID branchId,
                                                               @PathVariable UUID productId) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getByProduct(branchId, productId)));

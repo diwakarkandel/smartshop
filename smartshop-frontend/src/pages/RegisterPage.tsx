@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import api, { extractErrorMessage } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
+import { getDefaultRoute } from '../lib/routeRoles';
 import type { AuthUser } from '../types';
 
 const schema = z
@@ -48,7 +49,7 @@ export default function RegisterPage() {
         password: values.password,
       });
       setSession(res.data.data);
-      navigate('/dashboard');
+      navigate(getDefaultRoute(res.data.data.roles));
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {

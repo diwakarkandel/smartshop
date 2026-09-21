@@ -8,7 +8,7 @@ import { useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import api, { extractErrorMessage } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
-import { defaultShopId } from '../stores/shopStore';
+import { useDefaultShopId } from '../stores/shopStore';
 import Can from '../components/guards/Can';
 import { ROLES } from '../lib/routeRoles';
 import type { PageResponse } from '../types';
@@ -23,7 +23,7 @@ interface UserRow {
 }
 
 export default function UsersPage() {
-  const shopId = defaultShopId();
+  const shopId = useDefaultShopId();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [page, setPage] = useState(0);
@@ -60,6 +60,13 @@ export default function UsersPage() {
     onError: (err) => setError(extractErrorMessage(err)),
   });
 
+  const setStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.patch(`/users/${id}/status`, { status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
+    onError: (err) => setError(extractErrorMessage(err)),
+  });
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -88,28 +95,50 @@ export default function UsersPage() {
                 <TableCell>Email</TableCell>
                 <TableCell>Roles</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell align="right"></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(data?.content ?? []).map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>
-                    {u.firstName} {u.lastName}
-                  </TableCell>
-                  <TableCell>{u.email}</TableCell>
-                  <TableCell>
-                    {(u.roles ?? []).map((r) => (
-                      <Chip key={r} size="small" label={r} sx={{ mr: 0.5 }} />
-                    ))}
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="small" color={u.status === 'ACTIVE' ? 'success' : 'default'} label={u.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
+              {(data?.content ?? []).map((u) => {
+                const isSelf = u.id === user?.userId;
+                const active = u.status === 'ACTIVE';
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell>
+                      {u.firstName} {u.lastName}
+                    </TableCell>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      {(u.roles ?? []).map((r) => (
+                        <Chip key={r} size="small" label={r} sx={{ mr: 0.5 }} />
+                      ))}
+                    </TableCell>
+                    <TableCell>
+                      <Chip size="small" color={active ? 'success' : 'default'} label={u.status} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Can roles={[ROLES.SUPER_ADMIN]}>
+                        <Button
+                          size="small"
+                          color={active ? 'error' : 'success'}
+                          disabled={isSelf || setStatus.isPending}
+                          title={isSelf ? 'You cannot change your own status' : undefined}
+                          onClick={() => {
+                            const next = active ? 'BLOCKED' : 'ACTIVE';
+                            if (!window.confirm(`${active ? 'Block' : 'Activate'} ${u.firstName} ${u.lastName}?`)) return;
+                            setStatus.mutate({ id: u.id, status: next });
+                          }}
+                        >
+                          {active ? 'Block' : 'Activate'}
+                        </Button>
+                      </Can>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {(data?.content ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4}>No users</TableCell>
+                  <TableCell colSpan={5}>No users</TableCell>
                 </TableRow>
               )}
             </TableBody>
